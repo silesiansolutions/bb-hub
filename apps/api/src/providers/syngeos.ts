@@ -29,12 +29,27 @@ interface SyngeosDevice {
   sensors?: SyngeosSensor[];
 }
 
+export interface SyngeosMetricValue {
+  metric: AirMetric;
+  at?: Date;
+  value: number;
+}
+
 export interface SyngeosReading {
   city?: string;
   address?: string;
-  at?: Date;
-  metrics: Partial<Record<AirMetric, number>>;
+  values: SyngeosMetricValue[];
 }
+
+const parseDate = (raw: string | undefined): Date | undefined => {
+  if (!raw) {
+    return undefined;
+  }
+
+  const date = new Date(raw);
+
+  return Number.isNaN(date.getTime()) ? undefined : date;
+};
 
 export const parseSyngeos = (body: unknown): SyngeosReading | undefined => {
   if (!body || typeof body !== 'object') {
@@ -42,8 +57,7 @@ export const parseSyngeos = (body: unknown): SyngeosReading | undefined => {
   }
 
   const device = body as SyngeosDevice;
-  const metrics: Partial<Record<AirMetric, number>> = {};
-  let at: Date | undefined;
+  const values: SyngeosMetricValue[] = [];
 
   for (const sensor of device.sensors ?? []) {
     const metric = sensor.name ? SENSOR_TO_METRIC[sensor.name.toLowerCase()] : undefined;
@@ -54,18 +68,10 @@ export const parseSyngeos = (body: unknown): SyngeosReading | undefined => {
       continue;
     }
 
-    metrics[metric] = value;
-
-    if (latest?.read_at) {
-      const readAt = new Date(latest.read_at);
-
-      if (!Number.isNaN(readAt.getTime()) && (!at || readAt > at)) {
-        at = readAt;
-      }
-    }
+    values.push({ metric, at: parseDate(latest?.read_at), value });
   }
 
-  return { city: device.city, address: device.address, at, metrics };
+  return { city: device.city, address: device.address, values };
 };
 
 export const isInCity = (reading: SyngeosReading, city: string): boolean =>

@@ -75,11 +75,13 @@ describe('api (e2e)', () => {
     expect(one.body.url).toBeUndefined();
   });
 
-  it('serves air aggregates per metric', async () => {
+  it('serves air aggregates per metric, bucketed by each measurement time', async () => {
     await aggregates.bulkAir([
-      { deviceId: 1, at: new Date('2026-09-01T10:00:00Z'), metrics: { pm25: 10, temperature: 15 } },
-      { deviceId: 1, at: new Date('2026-09-01T10:30:00Z'), metrics: { pm25: 20 } },
+      { deviceId: 1, metric: 'pm25', at: new Date('2026-09-01T10:00:00Z'), value: 10 },
+      { deviceId: 1, metric: 'temperature', at: new Date('2026-09-01T10:00:00Z'), value: 15 },
+      { deviceId: 1, metric: 'pm25', at: new Date('2026-09-01T10:30:00Z'), value: 20 },
     ]);
+    expect(await aggregates.recordAir([{ deviceId: 1, metric: 'pm25', at: new Date('2026-09-01T10:30:00Z'), value: 20 }])).toBe(0);
 
     const hourly = await get('/api/air/1/hourly?from=2026-09-01T00:00:00Z&to=2026-09-02T00:00:00Z').expect(200);
 
@@ -96,6 +98,16 @@ describe('api (e2e)', () => {
     const daily = await get('/api/air/1/daily?from=2026-09-01T00:00:00Z&to=2026-09-02T00:00:00Z').expect(200);
 
     expect(daily.body[0].metrics.pm25).toEqual({ avg: 15, min: 10, max: 20, samples: 2 });
+
+    const one = await get('/api/air/1').expect(200);
+
+    expect(one.body.latest).toEqual({
+      at: '2026-09-01T10:30:00.000Z',
+      metrics: {
+        pm25: { value: 20, at: '2026-09-01T10:30:00.000Z' },
+        temperature: { value: 15, at: '2026-09-01T10:00:00.000Z' },
+      },
+    });
   });
 
   it('validates ids and ranges', async () => {

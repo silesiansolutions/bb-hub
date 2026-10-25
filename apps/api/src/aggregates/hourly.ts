@@ -23,10 +23,11 @@ export interface ParkingReading {
   capacity: number;
 }
 
-export interface AirReading {
+export interface AirSample {
   deviceId: number;
+  metric: AirMetric;
   at: Date;
-  metrics: Partial<Record<AirMetric, number>>;
+  value: number;
 }
 
 export interface Stat {
@@ -46,11 +47,13 @@ export interface ParkingHourly {
   last: Date;
 }
 
+export interface AirStat extends Stat {
+  t: Date;
+}
+
 export interface AirHourly {
   _id: { s: number; h: Date };
-  n: number;
-  m: Partial<Record<AirMetric, Stat>>;
-  last: Date;
+  m: Partial<Record<AirMetric, AirStat>>;
 }
 
 export const hourStart = (at: Date): Date => {
@@ -73,25 +76,20 @@ export const parkingUpsert = (r: ParkingReading) => ({
   },
 });
 
-export const airUpsert = (r: AirReading) => {
-  const inc: Record<string, number> = { n: 1 };
-  const min: Record<string, number> = {};
-  const max: Record<string, number> = {};
-
-  for (const [metric, value] of Object.entries(r.metrics)) {
-    if (value === undefined || !Number.isFinite(value)) {
-      continue;
-    }
-
-    inc[`m.${metric}.n`] = 1;
-    inc[`m.${metric}.s`] = value;
-    min[`m.${metric}.lo`] = value;
-    max[`m.${metric}.hi`] = value;
-  }
+export const airUpsert = (r: AirSample) => {
+  const key = `m.${r.metric}`;
 
   return {
-    filter: { _id: { s: r.deviceId, h: hourStart(r.at) }, ...notCountedYet(r.at) },
-    update: { $inc: inc, $min: min, $max: max, $set: { last: r.at } },
+    filter: {
+      _id: { s: r.deviceId, h: hourStart(r.at) },
+      $or: [{ [`${key}.t`]: { $lt: r.at } }, { [`${key}.t`]: { $exists: false } }],
+    },
+    update: {
+      $inc: { [`${key}.n`]: 1, [`${key}.s`]: r.value },
+      $min: { [`${key}.lo`]: r.value },
+      $max: { [`${key}.hi`]: r.value },
+      $set: { [`${key}.t`]: r.at },
+    },
   };
 };
 

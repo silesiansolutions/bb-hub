@@ -1,4 +1,3 @@
-import { join } from 'node:path';
 import { parseArgs } from 'node:util';
 
 import { Logger, Module } from '@nestjs/common';
@@ -8,9 +7,9 @@ import { MongooseModule } from '@nestjs/mongoose';
 
 import { AggregatesModule } from '../aggregates/aggregates.module';
 import { AggregatesService } from '../aggregates/aggregates.service';
-import { AirReading } from '../aggregates/hourly';
+import { AirSample } from '../aggregates/hourly';
 
-import { airReadings, listSources, parkingReadings } from './bb-node-reader';
+import { airSamples, listSources, parkingReadings } from './bb-node-reader';
 
 @Module({
   imports: [
@@ -27,14 +26,14 @@ class BackfillModule {}
 const run = async (): Promise<void> => {
   const { values } = parseArgs({
     options: {
-      dir: { type: 'string' },
+      dir: { type: 'string', multiple: true },
       city: { type: 'string', default: 'Bielsko-Biała' },
       'any-city': { type: 'boolean', default: false },
     },
   });
 
-  if (!values.dir) {
-    throw new Error('usage: backfill --dir <backup-data> [--city <name> | --any-city]');
+  if (!values.dir?.length) {
+    throw new Error('usage: backfill --dir <tree> [--dir <tree>] [--city <name> | --any-city]');
   }
 
   const logger = new Logger('Backfill');
@@ -43,36 +42,48 @@ const run = async (): Promise<void> => {
   const city = values['any-city'] ? undefined : values.city;
 
   try {
-    for (const source of await listSources(join(values.dir, 'parking'))) {
+    for (const source of await listSources(values.dir, 'parking')) {
       let counted = 0;
 
-      for (const file of source.files) {
-        counted += await aggregates.bulkParking(await parkingReadings(source.id, file));
+      for (const { files } of source.days) {
+        counted += await aggregates.bulkParking(await parkingReadings(source.id, files));
       }
 
-      logger.log(`parking ${source.id}: ${source.files.length} days, ${counted} readings counted`);
+      logger.log(`parking ${source.id}: ${source.days.length} days, ${counted} readings counted`);
     }
 
-    for (const source of await listSources(join(values.dir, 'climate'))) {
+    const cutoffs: string[] = [];
+
+    for (const source of await listSources(values.dir, 'climate')) {
       let counted = 0;
       let outside = 0;
-      let batch: AirReading[] = [];
+      let lastInCity: Date | undefined;
+      let newestSample: Date | undefined;
+      let batch: AirSample[] = [];
 
-      for (const file of source.files) {
-        const { readings, outsideCity } = await airReadings(source.id, file, city);
+      for (const { files } of source.days) {
+        const result = await airSamples(source.id, files, city);
 
-        outside += outsideCity;
-        batch = batch.concat(readings);
+        outside += result.outsideCity;
+        lastInCity = result.lastInCity ?? lastInCity;
+        for (const sample of result.samples) {
+          newestSample = !newestSample || sample.at > newestSample ? sample.at : newestSample;
+        }
 
-        if (batch.length >= 500) {
+        batch = batch.concat(result.samples);
+
+        if (batch.length >= 2000) {
           counted += await aggregates.bulkAir(batch);
           batch = [];
         }
       }
 
       counted += await aggregates.bulkAir(batch);
-      logger.log(`air ${source.id}: ${source.files.length} days, ${counted} readings counted, ${outside} outside ${city ?? 'any city'}`);
+      cutoffs.push(`| ${source.id} | ${lastInCity?.toISOString() ?? '-'} | ${newestSample?.toISOString() ?? '-'} | ${counted} | ${outside} |`);
+      logger.log(`air ${source.id}: ${source.days.length} days, ${counted} samples counted, ${outside} readings outside ${city ?? 'any city'}`);
     }
+
+    process.stdout.write(['| air id | last fetch reporting the city | newest measurement in city | samples counted | fetches outside |', '| --- | --- | --- | --- | --- |', ...cutoffs, ''].join('\n'));
   } finally {
     await app.close();
   }

@@ -22,14 +22,21 @@ describe('hourly aggregates', () => {
     });
   });
 
-  it('builds per-metric counters and drops non-finite values', () => {
-    const at = new Date('2026-10-25T01:00:13Z');
-    const { filter, update } = airUpsert({ deviceId: 3, at, metrics: { pm25: 3.55, pm10: Number.NaN, temperature: -1.5 } });
+  it('keys an air sample by the hour of its own measurement time, per metric', () => {
+    const at = new Date('2025-06-30T20:00:00Z');
+    const { filter, update } = airUpsert({ deviceId: 1, metric: 'pm10', at, value: 12 });
 
     expect(Object.keys(filter._id)).toEqual(['s', 'h']);
-    expect(update.$inc).toEqual({ n: 1, 'm.pm25.n': 1, 'm.pm25.s': 3.55, 'm.temperature.n': 1, 'm.temperature.s': -1.5 });
-    expect(update.$min).toEqual({ 'm.pm25.lo': 3.55, 'm.temperature.lo': -1.5 });
-    expect(update.$max).toEqual({ 'm.pm25.hi': 3.55, 'm.temperature.hi': -1.5 });
+    expect(filter).toEqual({
+      _id: { s: 1, h: new Date('2025-06-30T20:00:00Z') },
+      $or: [{ 'm.pm10.t': { $lt: at } }, { 'm.pm10.t': { $exists: false } }],
+    });
+    expect(update).toEqual({
+      $inc: { 'm.pm10.n': 1, 'm.pm10.s': 12 },
+      $min: { 'm.pm10.lo': 12 },
+      $max: { 'm.pm10.hi': 12 },
+      $set: { 'm.pm10.t': at },
+    });
   });
 
   it('turns counters into an average rounded to two places', () => {

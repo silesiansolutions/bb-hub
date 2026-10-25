@@ -2,13 +2,13 @@ import { Controller, Get, Header, NotFoundException, Param, ParseIntPipe, Query 
 import { ApiTags } from '@nestjs/swagger';
 
 import { AggregatesService } from '../aggregates/aggregates.service';
-import { AirHourly, statView } from '../aggregates/hourly';
+import { Stat, statView } from '../aggregates/hourly';
 import { AIR_DEVICES, AirSource, findAirDevice } from '../catalog/catalog';
 import { DAILY_RANGE, HOURLY_RANGE, RangeQuery, resolveRange } from '../common/range';
 
 const CACHE = 'public, max-age=300';
 
-const metricsView = (m: AirHourly['m']) =>
+const metricsView = (m: Partial<Record<string, Stat>>) =>
   Object.fromEntries(Object.entries(m).flatMap(([k, v]) => (v ? [[k, statView(v)]] : [])));
 
 @ApiTags('air')
@@ -61,6 +61,9 @@ export class AirController {
   private async withLatest(device: AirSource) {
     const latest = await this.aggregates.latestAir(device.id);
 
-    return { ...device, latest: latest ? { at: latest.at, metrics: latest.metrics } : null };
+    const metrics = Object.entries(latest?.m ?? {}).flatMap(([metric, v]) => (v ? [{ metric, value: v.v, at: v.t }] : []));
+    const at = metrics.reduce<Date | null>((max, m) => (!max || m.at > max ? m.at : max), null);
+
+    return { ...device, latest: at ? { at, metrics: Object.fromEntries(metrics.map((m) => [m.metric, { value: m.value, at: m.at }])) } : null };
   }
 }

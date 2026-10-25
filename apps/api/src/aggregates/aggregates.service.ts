@@ -3,7 +3,7 @@ import { InjectConnection } from '@nestjs/mongoose';
 import { AnyBulkWriteOperation, Collection, MongoBulkWriteError, MongoServerError } from 'mongodb';
 import { Connection } from 'mongoose';
 
-import { AIR_METRICS, AirHourly, AirReading, airUpsert, ParkingHourly, ParkingReading, parkingUpsert, Stat } from './hourly';
+import { AIR_METRICS, AirHourly, AirMetric, AirSample, airUpsert, ParkingHourly, ParkingReading, parkingUpsert, Stat } from './hourly';
 
 const DUPLICATE_KEY = 11000;
 const TIMEZONE = 'Europe/Warsaw';
@@ -17,8 +17,7 @@ export interface LatestParking {
 
 export interface LatestAir {
   _id: string;
-  at: Date;
-  metrics: AirReading['metrics'];
+  m: Partial<Record<AirMetric, { v: number; t: Date }>>;
 }
 
 export interface DailyRow<T> {
@@ -57,22 +56,45 @@ export class AggregatesService {
     return counted;
   }
 
-  async recordAir(reading: AirReading): Promise<boolean> {
-    const counted = await this.upsertOnce(this.air, airUpsert(reading));
+  async recordAir(samples: AirSample[]): Promise<number> {
+    let counted = 0;
 
-    if (counted) {
-      await this.setLatest<LatestAir>(`air:${reading.deviceId}`, reading.at, { metrics: reading.metrics });
+    for (const sample of samples) {
+      if (await this.upsertOnce(this.air, airUpsert(sample))) {
+        counted++;
+      }
     }
+
+    await this.setLatestAir(samples);
 
     return counted;
   }
 
   async bulkParking(readings: ParkingReading[]): Promise<number> {
-    return this.bulkOnce(this.parking, readings.map((r) => parkingUpsert(r)));
+    const counted = await this.bulkOnce(this.parking, readings.map((r) => parkingUpsert(r)));
+    const newest = new Map<number, ParkingReading>();
+
+    for (const r of readings) {
+      const seen = newest.get(r.parkingId);
+
+      if (!seen || r.at > seen.at) {
+        newest.set(r.parkingId, r);
+      }
+    }
+
+    for (const r of newest.values()) {
+      await this.setLatest<LatestParking>(`parking:${r.parkingId}`, r.at, { available: r.available, capacity: r.capacity });
+    }
+
+    return counted;
   }
 
-  async bulkAir(readings: AirReading[]): Promise<number> {
-    return this.bulkOnce(this.air, readings.map((r) => airUpsert(r)));
+  async bulkAir(samples: AirSample[]): Promise<number> {
+    const counted = await this.bulkOnce(this.air, samples.map((s) => airUpsert(s)));
+
+    await this.setLatestAir(samples);
+
+    return counted;
   }
 
   async latestParking(id: number): Promise<LatestParking | null> {
@@ -118,7 +140,7 @@ export class AggregatesService {
     return rows.map(({ _id, ...value }) => ({ day: _id, value }));
   }
 
-  async airDaily(id: number, from: Date, to: Date): Promise<DailyRow<AirHourly['m']>[]> {
+  async airDaily(id: number, from: Date, to: Date): Promise<DailyRow<Partial<Record<AirMetric, Stat>>>[]> {
     const group: Record<string, unknown> = {
       _id: { $dateTrunc: { date: '$_id.h', unit: 'day', timezone: TIMEZONE } },
     };
@@ -139,7 +161,7 @@ export class AggregatesService {
       .toArray();
 
     return rows.map((row) => {
-      const value: AirHourly['m'] = {};
+      const value: Partial<Record<AirMetric, Stat>> = {};
 
       for (const metric of AIR_METRICS) {
         if (row[`${metric}_n`] > 0) {
@@ -198,6 +220,35 @@ export class AggregatesService {
       }
 
       throw error;
+    }
+  }
+
+  private async setLatestAir(samples: AirSample[]): Promise<void> {
+    const newest = new Map<string, AirSample>();
+
+    for (const sample of samples) {
+      const key = `${sample.deviceId}:${sample.metric}`;
+      const seen = newest.get(key);
+
+      if (!seen || sample.at > seen.at) {
+        newest.set(key, sample);
+      }
+    }
+
+    for (const sample of newest.values()) {
+      const key = `m.${sample.metric}`;
+
+      try {
+        await this.latest<LatestAir>().updateOne(
+          { _id: `air:${sample.deviceId}`, $or: [{ [`${key}.t`]: { $lt: sample.at } }, { [`${key}.t`]: { $exists: false } }] },
+          { $set: { [`${key}.v`]: sample.value, [`${key}.t`]: sample.at } },
+          { upsert: true },
+        );
+      } catch (error) {
+        if (!isDuplicate(error)) {
+          throw error;
+        }
+      }
     }
   }
 

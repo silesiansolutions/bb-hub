@@ -1,7 +1,7 @@
 import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
-import { AirReading, ParkingReading } from '../aggregates/hourly';
+import { AirSample, ParkingReading } from '../aggregates/hourly';
 import { isInCity, parseSyngeos } from '../providers/syngeos';
 
 interface RawParking {
@@ -15,66 +15,107 @@ interface RawAir {
   originalData?: unknown;
 }
 
-const DAY_FILE = /^\d{4}-\d{2}-\d{2}\.json$/;
+const DAY_FILE = /^(\d{4}-\d{2}-\d{2})\.json$/;
 
-export interface SourceDir {
+export interface SourceDays {
   id: number;
-  files: string[];
+  days: { day: string; files: string[] }[];
 }
 
-export const listSources = async (dir: string): Promise<SourceDir[]> => {
-  const entries = await readdir(dir, { withFileTypes: true });
-  const sources: SourceDir[] = [];
-
-  for (const entry of entries) {
-    if (!entry.isDirectory() || !/^\d+$/.test(entry.name)) {
-      continue;
-    }
-
-    const files = (await readdir(join(dir, entry.name))).filter((f) => DAY_FILE.test(f)).sort();
-
-    sources.push({ id: Number(entry.name), files: files.map((f) => join(dir, entry.name, f)) });
-  }
-
-  return sources.sort((a, b) => a.id - b.id);
-};
-
-const readArray = async <T>(file: string): Promise<T[]> => {
-  const parsed: unknown = JSON.parse(await readFile(file, 'utf8'));
-
-  return Array.isArray(parsed) ? (parsed as T[]) : [];
-};
-
-export const parkingReadings = async (id: number, file: string): Promise<ParkingReading[]> => {
-  const rows = await readArray<RawParking>(file);
-
-  return rows.flatMap((row) => {
-    const at = row.date ? new Date(row.date) : undefined;
-    const available = Number(row.availableSpots);
-    const capacity = Number(row.totalSpots);
-
-    if (!at || Number.isNaN(at.getTime()) || !Number.isFinite(available) || !Number.isFinite(capacity)) {
+const listDir = async (dir: string) => {
+  try {
+    return await readdir(dir, { withFileTypes: true });
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
       return [];
     }
 
-    return [{ parkingId: id, at, available, capacity }];
+    throw error;
+  }
+};
+
+export const listSources = async (roots: string[], type: string): Promise<SourceDays[]> => {
+  const byId = new Map<number, Map<string, string[]>>();
+
+  for (const root of roots) {
+    for (const entry of await listDir(join(root, type))) {
+      if (!entry.isDirectory() || !/^\d+$/.test(entry.name)) {
+        continue;
+      }
+
+      const id = Number(entry.name);
+      const days = byId.get(id) ?? new Map<string, string[]>();
+
+      for (const file of await readdir(join(root, type, entry.name))) {
+        const day = file.match(DAY_FILE)?.[1];
+
+        if (day) {
+          days.set(day, [...(days.get(day) ?? []), join(root, type, entry.name, file)]);
+        }
+      }
+
+      byId.set(id, days);
+    }
+  }
+
+  return [...byId.entries()]
+    .sort(([a], [b]) => a - b)
+    .map(([id, days]) => ({
+      id,
+      days: [...days.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([day, files]) => ({ day, files })),
+    }));
+};
+
+const readRows = async <T extends { date?: string }>(files: string[]): Promise<T[]> => {
+  const rows: T[] = [];
+
+  for (const file of files) {
+    const parsed: unknown = JSON.parse(await readFile(file, 'utf8'));
+
+    if (Array.isArray(parsed)) {
+      rows.push(...(parsed as T[]));
+    }
+  }
+
+  const seen = new Set<string>();
+
+  return rows
+    .filter((row) => typeof row.date === 'string' && !Number.isNaN(new Date(row.date).getTime()))
+    .sort((a, b) => a.date!.localeCompare(b.date!))
+    .filter((row) => !seen.has(row.date!) && seen.add(row.date!) !== undefined);
+};
+
+export const parkingReadings = async (id: number, files: string[]): Promise<ParkingReading[]> => {
+  const rows = await readRows<RawParking>(files);
+
+  return rows.flatMap((row) => {
+    const available = Number(row.availableSpots);
+    const capacity = Number(row.totalSpots);
+
+    if (!Number.isFinite(available) || !Number.isFinite(capacity)) {
+      return [];
+    }
+
+    return [{ parkingId: id, at: new Date(row.date!), available, capacity }];
   });
 };
 
-export interface AirFileResult {
-  readings: AirReading[];
+export interface AirDayResult {
+  samples: AirSample[];
   outsideCity: number;
+  lastInCity?: Date;
 }
 
-export const airReadings = async (id: number, file: string, city: string | undefined): Promise<AirFileResult> => {
-  const rows = await readArray<RawAir>(file);
-  const readings: AirReading[] = [];
+export const airSamples = async (id: number, files: string[], city: string | undefined): Promise<AirDayResult> => {
+  const rows = await readRows<RawAir>(files);
+  const samples: AirSample[] = [];
   let outsideCity = 0;
+  let lastInCity: Date | undefined;
 
   for (const row of rows) {
     const parsed = parseSyngeos(row.originalData);
 
-    if (!parsed || Object.keys(parsed.metrics).length === 0) {
+    if (!parsed || parsed.values.length === 0) {
       continue;
     }
 
@@ -83,14 +124,14 @@ export const airReadings = async (id: number, file: string, city: string | undef
       continue;
     }
 
-    const at = parsed.at ?? (row.date ? new Date(row.date) : undefined);
+    const fetchedAt = new Date(row.date!);
 
-    if (!at || Number.isNaN(at.getTime())) {
-      continue;
+    lastInCity = fetchedAt;
+
+    for (const { metric, at, value } of parsed.values) {
+      samples.push({ deviceId: id, metric, at: at && at <= fetchedAt ? at : fetchedAt, value });
     }
-
-    readings.push({ deviceId: id, at, metrics: parsed.metrics });
   }
 
-  return { readings, outsideCity };
+  return { samples, outsideCity, lastInCity };
 };

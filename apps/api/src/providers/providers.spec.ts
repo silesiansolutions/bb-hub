@@ -27,12 +27,18 @@ describe('parseSyngeos', () => {
     ],
   };
 
-  it('maps sensor names to metrics and takes the newest read_at', () => {
-    expect(parseSyngeos(device)).toEqual({
+  it('maps sensor names to metrics and keeps the read_at of each sensor', () => {
+    const stale = { ...device, sensors: [...device.sensors, { name: 'pm1', data: [{ read_at: '2025-06-30T22:00:00+02:00', value: 4 }] }] };
+
+    expect(parseSyngeos(stale)).toEqual({
       city: 'Bielsko-Biała',
       address: 'plac Adama Mickiewicza 3',
-      at: new Date('2026-10-25T16:52:13Z'),
-      metrics: { temperature: 6.1, pressure: 1007, pm25: 3.55 },
+      values: [
+        { metric: 'temperature', at: new Date('2026-10-25T16:52:13Z'), value: 6.1 },
+        { metric: 'pressure', at: new Date('2026-10-25T16:52:13Z'), value: 1007 },
+        { metric: 'pm25', at: new Date('2026-10-25T16:52:13Z'), value: 3.55 },
+        { metric: 'pm1', at: new Date('2025-06-30T20:00:00Z'), value: 4 },
+      ],
     });
   });
 
