@@ -3,6 +3,7 @@ export const pl = {
     name: 'BB Hub',
     tagline: 'Parkingi i jakość powietrza w Bielsku-Białej',
     description: 'Wolne miejsca na parkingach miejskich i pomiary jakości powietrza w Bielsku-Białej, razem z archiwum.',
+    sources: 'Źródła danych: liczniki parkingów MZD w Bielsku-Białej (system Controlla) i czujniki powietrza Syngeos. Dane pokazujemy w takiej postaci, w jakiej je pobraliśmy.',
   },
   nav: {
     dashboard: 'Pulpit',

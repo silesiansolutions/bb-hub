@@ -63,6 +63,13 @@ MONGODB_URI=... node apps/api/dist/backfill/backfill.js --dir <data> --dir <back
 
 Air readings from devices that report a town other than Bielsko-Biała are skipped; `--any-city` keeps them. Each measurement is counted once at its own `read_at`; a sample without `read_at`, or with `read_at` more than 5 minutes after the fetch, is skipped and counted in the log.
 
+## Data sources
+
+- Car park occupancy: counters of the car parks run by Miejski Zarząd Dróg w Bielsku-Białej, read from the Controlla widget that MZD links from its car park pages.
+- Air quality: the public device API of Syngeos.
+
+Data are shown as collected, without warranty.
+
 ## License
 
 [MIT](./LICENSE).

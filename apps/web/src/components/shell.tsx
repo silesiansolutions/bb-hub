@@ -67,6 +67,9 @@ export const Shell = ({ children }: { children: ReactNode }) => {
         </Flex>
       </Layout.Header>
       <Layout.Content style={{ padding: 16, maxWidth: 1200, width: '100%', margin: '0 auto' }}>{children}</Layout.Content>
+      <Layout.Footer style={{ maxWidth: 1200, width: '100%', margin: '0 auto', padding: '16px' }}>
+        <Typography.Text type="secondary">{t.site.sources}</Typography.Text>
+      </Layout.Footer>
     </Layout>
   );
 };

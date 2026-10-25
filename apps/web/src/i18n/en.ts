@@ -5,6 +5,7 @@ export const en: Messages = {
     name: 'BB Hub',
     tagline: 'Parking and air quality in Bielsko-Biała',
     description: 'Free spaces in city car parks and air quality measurements in Bielsko-Biała, with an archive.',
+    sources: 'Data sources: MZD Bielsko-Biała car park counters (Controlla system) and Syngeos air sensors. Data are shown as collected.',
   },
   nav: {
     dashboard: 'Dashboard',
