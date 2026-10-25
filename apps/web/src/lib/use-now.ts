@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react';
 
-import { STALE_AFTER_MS } from './config';
 
 export const useNow = (intervalMs = 60_000) => {
   const [now, setNow] = useState(() => Date.now());
@@ -16,5 +15,4 @@ export const useNow = (intervalMs = 60_000) => {
   return now;
 };
 
-export const isStale = (at: string | null | undefined, now: number): boolean =>
-  !at || now - new Date(at).getTime() > STALE_AFTER_MS;
+export { isStale } from './stale.ts';

@@ -19,9 +19,9 @@ MongoDB keeps hourly aggregates, not raw readings; the raw history lives outside
 - `air_hourly`: `{ _id: { s, h }, m: { <metric>: { n, s, lo, hi, t } } }`: the same counters per metric, each bucketed by the measurement time its sensor reports; `t` is the last measurement counted.
 - `latest`: the newest value per source and metric.
 
-A reading is counted once. An upsert matches only when the reading is newer than the last one counted for that hour; a repeated old reading ends in a duplicate key error that is ignored, so re-running an import is safe.
+A reading is counted once. An upsert matches only when the reading is newer than the last one counted for that hour (per metric for air); a repeated reading ends in a duplicate key error that is ignored. Re-running an import over the same files is therefore safe, but readings are expected in time order: a reading older than the last one counted for its hour is skipped, so a later run with an extra tree adds only readings newer than what each hour already holds. The import logs how many readings it read, counted and skipped.
 
-Measured on the full history from 2024-02-25: about 155 MB of data and indexes (456k documents) against the 512 MB of a MongoDB Atlas free cluster. Daily views are computed from the hourly documents in the `Europe/Warsaw` time zone.
+Measured on 2026-10-25 over the full history from 2024-02-25: about 155 MB of data and indexes (456k documents) against the 512 MB of a MongoDB Atlas free cluster. With 4 car parks and 3 air sensors reporting, growth is about 13 MB a year; it scales with the number of air sensors. Daily views are computed from the hourly documents in the `Europe/Warsaw` time zone. A range is rounded out to whole hours (hourly views) or whole Warsaw days (daily views), so the first and last points always cover a full period; the current hour and day are naturally partial.
 
 ## API
 
@@ -37,7 +37,7 @@ All routes sit under `/api`; interactive documentation at `/api/docs`.
 | `GET /api/stats/air/daily?from&to` | city-wide daily average, minimum and maximum per metric across sensors |
 | `GET /api/health` | MongoDB and Redis status |
 
-When `ORIGIN_SECRET` is set, every route except `/api/health` requires the `x-origin-secret` header, so only the edge proxy reaches the origin.
+When `ORIGIN_SECRET` is set, every API route except `/api/health` requires the `x-origin-secret` header, so only the edge proxy reaches the data. The documentation under `/api/docs` stays public. Successful responses carry `Cache-Control: public` (5 minutes, statistics 1 hour); errors are never cached.
 
 ## Development
 
@@ -50,7 +50,9 @@ docker compose --profile local-db up -d redis mongo
 pnpm --filter @bb-hub/api start:dev
 ```
 
-Tests: `pnpm --filter @bb-hub/api test` for unit tests, `pnpm --filter @bb-hub/api test:e2e` with `MONGODB_URI` and `REDIS_URL` pointing at a disposable database.
+Tests: `pnpm --filter @bb-hub/api test` for unit tests, `pnpm --filter @bb-hub/api test:e2e` with `MONGODB_URI` and `REDIS_URL` set; the e2e suite drops its database and refuses to run unless the database name ends with `_e2e`.
+
+The site: `pnpm --filter @bb-hub/web build` writes a static export to `apps/web/out`. It calls the API at `/api` on its own origin, as it does behind the edge proxy, so serve `out` and the API under one origin to try it locally. `pnpm --filter @bb-hub/web test` runs the unit tests.
 
 Importing a raw history in the `<type>/<id>/<YYYY-MM-DD>.json` layout; several trees are merged by reading time:
 

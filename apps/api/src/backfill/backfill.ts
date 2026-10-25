@@ -9,7 +9,7 @@ import { AggregatesModule } from '../aggregates/aggregates.module';
 import { AggregatesService } from '../aggregates/aggregates.service';
 import { AirSample } from '../aggregates/hourly';
 
-import { airSamples, listSources, parkingReadings } from './bb-node-reader';
+import { addDropped, airSamples, Dropped, emptyDropped, listSources, parkingReadings } from './bb-node-reader';
 
 @Module({
   imports: [
@@ -22,6 +22,8 @@ import { airSamples, listSources, parkingReadings } from './bb-node-reader';
   ],
 })
 class BackfillModule {}
+
+const describe = (d: Dropped): string => `${d.noDate} without a date, ${d.duplicate} duplicate fetches, ${d.noValue} without values`;
 
 const run = async (): Promise<void> => {
   const { values } = parseArgs({
@@ -44,18 +46,26 @@ const run = async (): Promise<void> => {
   try {
     for (const source of await listSources(values.dir, 'parking')) {
       let counted = 0;
+      let read = 0;
+      let dropped = emptyDropped();
 
       for (const { files } of source.days) {
-        counted += await aggregates.bulkParking(await parkingReadings(source.id, files));
+        const result = await parkingReadings(source.id, files);
+
+        read += result.readings.length;
+        dropped = addDropped(dropped, result.dropped);
+        counted += await aggregates.bulkParking(result.readings);
       }
 
-      logger.log(`parking ${source.id}: ${source.days.length} days, ${counted} readings counted`);
+      logger.log(`parking ${source.id}: ${source.days.length} days, ${read} readings, ${counted} counted, ${read - counted} already counted or older than the hour's last, dropped ${describe(dropped)}`);
     }
 
     const cutoffs: string[] = [];
 
     for (const source of await listSources(values.dir, 'climate')) {
       let counted = 0;
+      let read = 0;
+      let dropped = emptyDropped();
       let outside = 0;
       let lastInCity: Date | undefined;
       let newestSample: Date | undefined;
@@ -65,6 +75,8 @@ const run = async (): Promise<void> => {
         const result = await airSamples(source.id, files, city);
 
         outside += result.outsideCity;
+        read += result.samples.length;
+        dropped = addDropped(dropped, result.dropped);
         lastInCity = result.lastInCity ?? lastInCity;
         for (const sample of result.samples) {
           newestSample = !newestSample || sample.at > newestSample ? sample.at : newestSample;
@@ -80,7 +92,7 @@ const run = async (): Promise<void> => {
 
       counted += await aggregates.bulkAir(batch);
       cutoffs.push(`| ${source.id} | ${lastInCity?.toISOString() ?? '-'} | ${newestSample?.toISOString() ?? '-'} | ${counted} | ${outside} |`);
-      logger.log(`air ${source.id}: ${source.days.length} days, ${counted} samples counted, ${outside} readings outside ${city ?? 'any city'}`);
+      logger.log(`air ${source.id}: ${source.days.length} days, ${read} samples, ${counted} counted, ${outside} fetches outside ${city ?? 'any city'}, dropped ${describe(dropped)}`);
     }
 
     process.stdout.write(['| air id | last fetch reporting the city | newest measurement in city | samples counted | fetches outside |', '| --- | --- | --- | --- | --- |', ...cutoffs, ''].join('\n'));

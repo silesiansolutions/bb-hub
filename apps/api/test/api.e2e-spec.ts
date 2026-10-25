@@ -15,8 +15,6 @@ describe('api (e2e)', () => {
   let aggregates: AggregatesService;
 
   beforeAll(async () => {
-    process.env.MONGODB_URI ??= 'mongodb://127.0.0.1:27017/bb_e2e';
-    process.env.REDIS_URL ??= 'redis://127.0.0.1:6379';
     process.env.ORIGIN_SECRET = SECRET;
 
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
@@ -24,7 +22,14 @@ describe('api (e2e)', () => {
     app = configureApp(moduleRef.createNestApplication<NestExpressApplication>());
     await app.init();
     aggregates = app.get(AggregatesService);
-    await app.get<Connection>(getConnectionToken()).dropDatabase();
+
+    const connection = app.get<Connection>(getConnectionToken());
+
+    if (!connection.name.endsWith('_e2e')) {
+      throw new Error(`refusing to drop database ${connection.name}: e2e needs a database named *_e2e`);
+    }
+
+    await connection.dropDatabase();
   });
 
   afterAll(async () => {
@@ -39,8 +44,11 @@ describe('api (e2e)', () => {
     expect(res.body.info).toEqual({ mongo: { status: 'up' }, redis: { status: 'up' } });
   });
 
-  it('rejects requests without the origin secret', async () => {
+  it('rejects requests without the right origin secret', async () => {
     await request(app.getHttpServer()).get('/api/parkings').expect(401);
+    await request(app.getHttpServer()).get('/api/parkings').set('x-origin-secret', '').expect(401);
+    await request(app.getHttpServer()).get('/api/parkings').set('x-origin-secret', 'e2e-origin-secreX').expect(401);
+    await request(app.getHttpServer()).get('/api/parkings').set('x-origin-secret', 'short').expect(401);
   });
 
   it('counts each parking reading once and serves hourly and daily aggregates', async () => {
@@ -111,10 +119,10 @@ describe('api (e2e)', () => {
   });
 
   it('reports hourly coverage per source and city-wide daily air statistics', async () => {
-    const coverage = await get('/api/stats/coverage?from=2026-10-25T00:00:00Z&to=2026-10-26T00:00:00Z').expect(200);
+    const coverage = await get('/api/stats/coverage?from=2026-10-24T22:00:00Z&to=2026-10-25T23:00:00Z').expect(200);
 
     expect(coverage.headers['cache-control']).toBe('public, max-age=3600');
-    expect(coverage.body.parkings[0]).toEqual({ id: 1, name: 'MZD Parking - Dmowskiego', hours: 2, share: 8.3 });
+    expect(coverage.body.parkings[0]).toEqual({ id: 1, name: 'MZD Parking - Dmowskiego', hours: 2, share: 8 });
     expect(coverage.body.parkings[1]).toMatchObject({ id: 2, hours: 0, share: 0 });
     expect(coverage.body.air).toEqual([]);
 
@@ -131,10 +139,42 @@ describe('api (e2e)', () => {
     ]);
   });
 
-  it('validates ids and ranges', async () => {
-    await get('/api/parkings/999').expect(404);
+  it('counts a whole Warsaw day even when from falls mid-day', async () => {
+    await aggregates.bulkParking([
+      { parkingId: 4, at: new Date('2026-10-20T06:10:00Z'), available: 40, capacity: 145 },
+      { parkingId: 4, at: new Date('2026-10-20T07:10:00Z'), available: 40, capacity: 145 },
+      { parkingId: 4, at: new Date('2026-10-20T15:10:00Z'), available: 4, capacity: 145 },
+    ]);
+
+    const daily = await get('/api/parkings/4/daily?from=2026-10-20T10:30:00Z&to=2026-10-21T10:30:00Z').expect(200);
+
+    expect(daily.body).toEqual([
+      { day: '2026-10-19T22:00:00.000Z', capacity: 145, available: { avg: 28, min: 4, max: 40, samples: 3 } },
+    ]);
+
+    const hourly = await get('/api/parkings/4/hourly?from=2026-10-20T06:30:00Z&to=2026-10-20T07:00:00Z').expect(200);
+
+    expect(hourly.body.map((r: { hour: string }) => r.hour)).toEqual(['2026-10-20T06:00:00.000Z']);
+  });
+
+  it('validates ids and ranges and never caches errors', async () => {
+    const missing = await get('/api/parkings/999').expect(404);
+
+    expect(missing.headers['cache-control']).toBeUndefined();
+    await get('/api/parkings/1/hourly?from=2026-W01&to=2026-03-01T00:00:00Z').expect(400);
     await get('/api/parkings/abc').expect(400);
     await get('/api/parkings/1/hourly?from=2026-01-01T00:00:00Z&to=2026-03-01T00:00:00Z').expect(400);
     await get('/api/parkings/1/hourly?from=yesterday').expect(400);
+  });
+
+  it('throttles per CF-Connecting-IP', async () => {
+    const hit = (ip: string) => request(app.getHttpServer()).get('/api/parkings').set('x-origin-secret', SECRET).set('cf-connecting-ip', ip);
+
+    for (let i = 0; i < 120; i++) {
+      await hit('203.0.113.7').expect(200);
+    }
+
+    await hit('203.0.113.7').expect(429);
+    await hit('203.0.113.8').expect(200);
   });
 });

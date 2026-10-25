@@ -1,14 +1,14 @@
-import { Controller, Get, Header, Query } from '@nestjs/common';
+import { Controller, Get, Query } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 
 import { AggregatesService } from '../aggregates/aggregates.service';
 import { statView } from '../aggregates/hourly';
 import { AIR_DEVICES, PARKINGS } from '../catalog/catalog';
+import { PublicCache } from '../common/cache';
 import { DAILY_RANGE, RangeQuery, resolveRange } from '../common/range';
 
 import { mergeCityDays, share } from './merge';
 
-const CACHE = 'public, max-age=3600';
 
 @ApiTags('stats')
 @Controller('stats')
@@ -16,9 +16,9 @@ export class StatsController {
   constructor(private readonly aggregates: AggregatesService) {}
 
   @Get('coverage')
-  @Header('Cache-Control', CACHE)
+  @PublicCache(3600)
   async coverage(@Query() query: RangeQuery) {
-    const { from, to } = resolveRange(query, DAILY_RANGE.defaultSpan, DAILY_RANGE.maxSpan);
+    const { from, to } = resolveRange(query, DAILY_RANGE.defaultSpan, DAILY_RANGE.maxSpan, 'day');
     const parkings = await Promise.all(
       PARKINGS.map(async (p) => {
         const hours = await this.aggregates.parkingHours(p.id, from, to);
@@ -38,9 +38,9 @@ export class StatsController {
   }
 
   @Get('air/daily')
-  @Header('Cache-Control', CACHE)
+  @PublicCache(3600)
   async airDaily(@Query() query: RangeQuery) {
-    const { from, to } = resolveRange(query, DAILY_RANGE.defaultSpan, DAILY_RANGE.maxSpan);
+    const { from, to } = resolveRange(query, DAILY_RANGE.defaultSpan, DAILY_RANGE.maxSpan, 'day');
     const perSensor = await Promise.all(AIR_DEVICES.map((a) => this.aggregates.airDaily(a.id, from, to)));
 
     return mergeCityDays(perSensor).map(({ day, metrics }) => ({

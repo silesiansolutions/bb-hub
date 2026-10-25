@@ -46,12 +46,10 @@ export class AggregatesService {
   async recordParking(reading: ParkingReading): Promise<boolean> {
     const counted = await this.upsertOnce(this.parking, parkingUpsert(reading));
 
-    if (counted) {
-      await this.setLatest<LatestParking>(`parking:${reading.parkingId}`, reading.at, {
-        available: reading.available,
-        capacity: reading.capacity,
-      });
-    }
+    await this.setLatest<LatestParking>(`parking:${reading.parkingId}`, reading.at, {
+      available: reading.available,
+      capacity: reading.capacity,
+    });
 
     return counted;
   }

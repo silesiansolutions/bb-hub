@@ -53,8 +53,8 @@ export class HealthController {
       await run();
 
       return indicator.up();
-    } catch (error) {
-      return indicator.down({ message: error instanceof Error ? error.message : String(error) });
+    } catch {
+      return indicator.down();
     }
   }
 }

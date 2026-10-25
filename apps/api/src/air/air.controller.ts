@@ -1,12 +1,12 @@
-import { Controller, Get, Header, NotFoundException, Param, ParseIntPipe, Query } from '@nestjs/common';
+import { Controller, Get, NotFoundException, Param, ParseIntPipe, Query } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 
 import { AggregatesService } from '../aggregates/aggregates.service';
 import { Stat, statView } from '../aggregates/hourly';
 import { AIR_DEVICES, AirSource, findAirDevice } from '../catalog/catalog';
+import { PublicCache } from '../common/cache';
 import { DAILY_RANGE, HOURLY_RANGE, RangeQuery, resolveRange } from '../common/range';
 
-const CACHE = 'public, max-age=300';
 
 const metricsView = (m: Partial<Record<string, Stat>>) =>
   Object.fromEntries(Object.entries(m).flatMap(([k, v]) => (v ? [[k, statView(v)]] : [])));
@@ -17,32 +17,32 @@ export class AirController {
   constructor(private readonly aggregates: AggregatesService) {}
 
   @Get()
-  @Header('Cache-Control', CACHE)
+  @PublicCache(300)
   async list() {
     return Promise.all(AIR_DEVICES.map((a) => this.withLatest(a)));
   }
 
   @Get(':id')
-  @Header('Cache-Control', CACHE)
+  @PublicCache(300)
   async one(@Param('id', ParseIntPipe) id: number) {
     return this.withLatest(this.require(id));
   }
 
   @Get(':id/hourly')
-  @Header('Cache-Control', CACHE)
+  @PublicCache(300)
   async hourly(@Param('id', ParseIntPipe) id: number, @Query() query: RangeQuery) {
     this.require(id);
-    const { from, to } = resolveRange(query, HOURLY_RANGE.defaultSpan, HOURLY_RANGE.maxSpan);
+    const { from, to } = resolveRange(query, HOURLY_RANGE.defaultSpan, HOURLY_RANGE.maxSpan, 'hour');
     const rows = await this.aggregates.airHourly(id, from, to);
 
     return rows.map((r) => ({ hour: r._id.h, metrics: metricsView(r.m) }));
   }
 
   @Get(':id/daily')
-  @Header('Cache-Control', CACHE)
+  @PublicCache(300)
   async daily(@Param('id', ParseIntPipe) id: number, @Query() query: RangeQuery) {
     this.require(id);
-    const { from, to } = resolveRange(query, DAILY_RANGE.defaultSpan, DAILY_RANGE.maxSpan);
+    const { from, to } = resolveRange(query, DAILY_RANGE.defaultSpan, DAILY_RANGE.maxSpan, 'day');
     const rows = await this.aggregates.airDaily(id, from, to);
 
     return rows.map((r) => ({ day: r.day, metrics: metricsView(r.value) }));

@@ -66,29 +66,48 @@ export const listSources = async (roots: string[], type: string): Promise<Source
     }));
 };
 
-const readRows = async <T extends { date?: string }>(files: string[]): Promise<T[]> => {
-  const rows: T[] = [];
+export interface Dropped {
+  noDate: number;
+  duplicate: number;
+  noValue: number;
+}
+
+export const emptyDropped = (): Dropped => ({ noDate: 0, duplicate: 0, noValue: 0 });
+
+export const addDropped = (total: Dropped, more: Dropped): Dropped => ({
+  noDate: total.noDate + more.noDate,
+  duplicate: total.duplicate + more.duplicate,
+  noValue: total.noValue + more.noValue,
+});
+
+const readRows = async <T extends { date?: string }>(files: string[]): Promise<{ rows: T[]; dropped: Dropped }> => {
+  const all: T[] = [];
 
   for (const file of files) {
     const parsed: unknown = JSON.parse(await readFile(file, 'utf8'));
 
     if (Array.isArray(parsed)) {
-      rows.push(...(parsed as T[]));
+      all.push(...(parsed as T[]));
     }
   }
 
+  const dated = all.filter((row) => typeof row.date === 'string' && !Number.isNaN(new Date(row.date).getTime()));
   const seen = new Set<string>();
-
-  return rows
-    .filter((row) => typeof row.date === 'string' && !Number.isNaN(new Date(row.date).getTime()))
+  const rows = dated
     .sort((a, b) => a.date!.localeCompare(b.date!))
     .filter((row) => !seen.has(row.date!) && seen.add(row.date!) !== undefined);
+
+  return { rows, dropped: { noDate: all.length - dated.length, duplicate: dated.length - rows.length, noValue: 0 } };
 };
 
-export const parkingReadings = async (id: number, files: string[]): Promise<ParkingReading[]> => {
-  const rows = await readRows<RawParking>(files);
+export interface ParkingDayResult {
+  readings: ParkingReading[];
+  dropped: Dropped;
+}
 
-  return rows.flatMap((row) => {
+export const parkingReadings = async (id: number, files: string[]): Promise<ParkingDayResult> => {
+  const { rows, dropped } = await readRows<RawParking>(files);
+  const readings = rows.flatMap((row) => {
     const available = Number(row.availableSpots);
     const capacity = Number(row.totalSpots);
 
@@ -98,24 +117,29 @@ export const parkingReadings = async (id: number, files: string[]): Promise<Park
 
     return [{ parkingId: id, at: new Date(row.date!), available, capacity }];
   });
+
+  return { readings, dropped: { ...dropped, noValue: rows.length - readings.length } };
 };
 
 export interface AirDayResult {
   samples: AirSample[];
   outsideCity: number;
   lastInCity?: Date;
+  dropped: Dropped;
 }
 
 export const airSamples = async (id: number, files: string[], city: string | undefined): Promise<AirDayResult> => {
-  const rows = await readRows<RawAir>(files);
+  const { rows, dropped } = await readRows<RawAir>(files);
   const samples: AirSample[] = [];
   let outsideCity = 0;
+  let noValue = 0;
   let lastInCity: Date | undefined;
 
   for (const row of rows) {
     const parsed = parseSyngeos(row.originalData);
 
     if (!parsed || parsed.values.length === 0) {
+      noValue++;
       continue;
     }
 
@@ -133,5 +157,5 @@ export const airSamples = async (id: number, files: string[], city: string | und
     }
   }
 
-  return { samples, outsideCity, lastInCity };
+  return { samples, outsideCity, lastInCity, dropped: { ...dropped, noValue } };
 };

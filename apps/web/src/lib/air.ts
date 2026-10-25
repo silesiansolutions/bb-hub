@@ -1,5 +1,8 @@
-import { isStale } from './use-now';
+import { isStale } from './stale.ts';
 import type { AirSensor } from './types';
+
+export const readingIsCurrent = (reading: { at: string } | undefined, now: number): boolean =>
+  reading !== undefined && !isStale(reading.at, now);
 
 export const hasData = (sensor: AirSensor) => sensor.latest !== null;
 

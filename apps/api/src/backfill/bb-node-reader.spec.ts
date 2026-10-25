@@ -17,12 +17,13 @@ describe('bb-node reader', () => {
   });
 
   it('reads parking rows, coercing numeric strings and dropping bad dates', async () => {
-    const readings = await parkingReadings(1, [join(FIXTURES, 'parking/1/2026-10-25.json')]);
+    const { readings, dropped } = await parkingReadings(1, [join(FIXTURES, 'parking/1/2026-10-25.json')]);
 
     expect(readings).toEqual([
       { parkingId: 1, at: new Date('2026-10-25T09:05:00.000Z'), available: 6, capacity: 65 },
       { parkingId: 1, at: new Date('2026-10-25T09:35:00.000Z'), available: 8, capacity: 65 },
     ]);
+    expect(dropped).toEqual({ noDate: 1, duplicate: 0, noValue: 0 });
   });
 
   it('merges both trees by date, drops the duplicate fetch and keeps stale sensors at their own time', async () => {
@@ -35,12 +36,18 @@ describe('bb-node reader', () => {
       { deviceId: 1, metric: 'no2', at: new Date('2025-09-20T11:00:00Z'), value: 20 },
     ]);
     expect(result.lastInCity).toEqual(new Date('2025-09-20T12:00:00.000Z'));
+    expect(result.dropped).toEqual({ noDate: 0, duplicate: 1, noValue: 0 });
   });
 
   it('counts fetches from another town and keeps every town without a city filter', async () => {
     const files = [join(FIXTURES, 'climate/3/2025-09-11.json')];
 
-    expect(await airSamples(3, files, 'Bielsko-Biała')).toEqual({ samples: [], outsideCity: 1, lastInCity: undefined });
+    expect(await airSamples(3, files, 'Bielsko-Biała')).toEqual({
+      samples: [],
+      outsideCity: 1,
+      lastInCity: undefined,
+      dropped: { noDate: 0, duplicate: 0, noValue: 0 },
+    });
     expect((await airSamples(3, files, undefined)).samples).toHaveLength(1);
   });
 });

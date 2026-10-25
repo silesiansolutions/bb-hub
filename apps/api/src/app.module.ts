@@ -1,12 +1,13 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { APP_GUARD } from '@nestjs/core';
+import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { MongooseModule } from '@nestjs/mongoose';
 import { TerminusModule } from '@nestjs/terminus';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 
 import { AggregatesModule } from './aggregates/aggregates.module';
 import { AirController } from './air/air.controller';
+import { CacheInterceptor } from './common/cache';
 import { OriginGuard } from './common/origin.guard';
 import { validateEnv } from './config/env';
 import { HealthController, RedisProbe } from './health/health.controller';
@@ -40,6 +41,7 @@ import { StatsController } from './stats/stats.controller';
     RedisProbe,
     { provide: APP_GUARD, useClass: OriginGuard },
     { provide: APP_GUARD, useClass: ThrottlerGuard },
+    { provide: APP_INTERCEPTOR, useClass: CacheInterceptor },
   ],
 })
 export class AppModule {}
