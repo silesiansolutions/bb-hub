@@ -29,4 +29,11 @@ describe('city-wide air statistics', () => {
     expect(share(12, new Date('2026-10-01T00:00:00Z'), new Date('2026-10-02T00:00:00Z'))).toBe(50);
     expect(share(0, new Date('2026-10-01T00:00:00Z'), new Date('2026-10-01T00:00:00Z'))).toBe(0);
   });
+
+  it('does not count hours after now as missing data', () => {
+    const now = new Date('2026-10-25T18:10:00Z');
+
+    expect(share(20, new Date('2026-10-24T23:00:00Z'), new Date('2026-10-25T23:00:00Z'), now)).toBe(100);
+    expect(share(19, new Date('2026-10-24T23:00:00Z'), new Date('2026-10-25T23:00:00Z'), new Date('2026-10-27T00:00:00Z'))).toBe(79.2);
+  });
 });

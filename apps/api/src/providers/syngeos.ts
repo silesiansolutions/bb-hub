@@ -39,6 +39,7 @@ export interface SyngeosReading {
   city?: string;
   address?: string;
   values: SyngeosMetricValue[];
+  unknownSensors: number;
 }
 
 const parseDate = (raw: string | undefined): Date | undefined => {
@@ -58,20 +59,27 @@ export const parseSyngeos = (body: unknown): SyngeosReading | undefined => {
 
   const device = body as SyngeosDevice;
   const values: SyngeosMetricValue[] = [];
+  let unknownSensors = 0;
 
   for (const sensor of device.sensors ?? []) {
     const metric = sensor.name ? SENSOR_TO_METRIC[sensor.name.toLowerCase()] : undefined;
+
+    if (!metric) {
+      unknownSensors++;
+      continue;
+    }
+
     const latest = sensor.data?.[0];
     const value = typeof latest?.value === 'string' ? Number(latest.value) : latest?.value;
 
-    if (!metric || typeof value !== 'number' || !Number.isFinite(value)) {
+    if (typeof value !== 'number' || !Number.isFinite(value)) {
       continue;
     }
 
     values.push({ metric, at: parseDate(latest?.read_at), value });
   }
 
-  return { city: device.city, address: device.address, values };
+  return { city: device.city, address: device.address, values, unknownSensors };
 };
 
 const foldCity = (name: string): string =>

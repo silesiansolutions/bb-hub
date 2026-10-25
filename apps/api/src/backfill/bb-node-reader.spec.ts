@@ -23,7 +23,7 @@ describe('bb-node reader', () => {
       { parkingId: 1, at: new Date('2026-10-25T09:05:00.000Z'), available: 6, capacity: 65 },
       { parkingId: 1, at: new Date('2026-10-25T09:35:00.000Z'), available: 8, capacity: 65 },
     ]);
-    expect(dropped).toEqual({ noDate: 1, duplicate: 0, noValue: 0 });
+    expect(dropped).toEqual({ noDate: 1, duplicate: 0, noValue: 0, unknownSensor: 0 });
   });
 
   it('merges both trees by date, drops the duplicate fetch and keeps stale sensors at their own time', async () => {
@@ -36,7 +36,7 @@ describe('bb-node reader', () => {
       { deviceId: 1, metric: 'no2', at: new Date('2025-09-20T11:00:00Z'), value: 20 },
     ]);
     expect(result.lastInCity).toEqual(new Date('2025-09-20T12:00:00.000Z'));
-    expect(result.dropped).toEqual({ noDate: 0, duplicate: 1, noValue: 0 });
+    expect(result.dropped).toEqual({ noDate: 0, duplicate: 1, noValue: 0, unknownSensor: 0 });
   });
 
   it('counts fetches from another town and keeps every town without a city filter', async () => {
@@ -46,7 +46,7 @@ describe('bb-node reader', () => {
       samples: [],
       outsideCity: 1,
       lastInCity: undefined,
-      dropped: { noDate: 0, duplicate: 0, noValue: 0 },
+      dropped: { noDate: 0, duplicate: 0, noValue: 0, unknownSensor: 0 },
     });
     expect((await airSamples(3, files, undefined)).samples).toHaveLength(1);
   });

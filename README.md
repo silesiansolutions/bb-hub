@@ -21,7 +21,7 @@ MongoDB keeps hourly aggregates, not raw readings; the raw history lives outside
 
 A reading is counted once. An upsert matches only when the reading is newer than the last one counted for that hour (per metric for air); a repeated reading ends in a duplicate key error that is ignored. Re-running an import over the same files is therefore safe, but readings are expected in time order: a reading older than the last one counted for its hour is skipped, so a later run with an extra tree adds only readings newer than what each hour already holds. The import logs how many readings it read, counted and skipped.
 
-Measured on 2026-10-25 over the full history from 2024-02-25: about 155 MB of data and indexes (456k documents) against the 512 MB of a MongoDB Atlas free cluster. With 4 car parks and 3 air sensors reporting, growth is about 13 MB a year; it scales with the number of air sensors. Daily views are computed from the hourly documents in the `Europe/Warsaw` time zone. A range is rounded out to whole hours (hourly views) or whole Warsaw days (daily views), so the first and last points always cover a full period; the current hour and day are naturally partial.
+Measured on 2026-10-25 over the full history from 2024-02-25: about 155 MB of data and indexes (456k documents) against the 512 MB of a MongoDB Atlas free cluster. Each source adds at most 8,760 hourly documents a year. At the averages measured with `$collStats` on that date (86 B per parking document, 379 B per air document, about 14 B of index per document), that is about 0.9 MB a year per car park and 3.4 MB a year per reporting air sensor. Daily views are computed from the hourly documents in the `Europe/Warsaw` time zone. A range is rounded out to whole hours (hourly views) or whole Warsaw days (daily views), so the first and last points always cover a full period; the current hour and day are naturally partial.
 
 ## API
 
@@ -30,11 +30,11 @@ All routes sit under `/api`; interactive documentation at `/api/docs`.
 | Route | Returns |
 | --- | --- |
 | `GET /api/parkings`, `GET /api/parkings/:id` | car parks with the latest reading |
-| `GET /api/parkings/:id/hourly?from&to` | free spaces per hour, up to 31 days, last 24 hours by default |
-| `GET /api/parkings/:id/daily?from&to` | free spaces per day, up to 400 days, last 30 days by default |
+| `GET /api/parkings/:id/hourly?from&to` | free spaces per hour, up to 31 days (checked before rounding out to whole hours), last 24 hours by default |
+| `GET /api/parkings/:id/daily?from&to` | free spaces per day, up to 400 days (checked before rounding out to whole days), last 30 days by default |
 | `GET /api/air`, `/api/air/:id`, `/hourly`, `/daily` | the same for air sensors, per metric |
-| `GET /api/stats/coverage?from&to` | hours with data per source and their share of the range |
-| `GET /api/stats/air/daily?from&to` | city-wide daily average, minimum and maximum per metric across sensors |
+| `GET /api/stats/coverage?from&to` | hours with data per source and their share of the range up to the current hour |
+| `GET /api/stats/air/daily?from&to` | city-wide daily average (weighted by the number of measurements), minimum and maximum per metric across sensors |
 | `GET /api/health` | MongoDB and Redis status |
 
 When `ORIGIN_SECRET` is set, every API route except `/api/health` requires the `x-origin-secret` header, so only the edge proxy reaches the data. The documentation under `/api/docs` stays public. Successful responses carry `Cache-Control: public` (5 minutes, statistics 1 hour); errors are never cached.

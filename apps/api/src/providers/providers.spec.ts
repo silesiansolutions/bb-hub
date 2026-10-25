@@ -39,6 +39,7 @@ describe('parseSyngeos', () => {
         { metric: 'pm25', at: new Date('2026-10-25T16:52:13Z'), value: 3.55 },
         { metric: 'pm1', at: new Date('2025-06-30T20:00:00Z'), value: 4 },
       ],
+      unknownSensors: 1,
     });
   });
 

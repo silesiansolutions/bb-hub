@@ -29,8 +29,11 @@ export const mergeCityDays = (perSensor: { day: Date; value: MetricStats }[][]):
   return [...days.values()].sort((a, b) => a.day.getTime() - b.day.getTime());
 };
 
-export const share = (hours: number, from: Date, to: Date): number => {
-  const total = Math.ceil((to.getTime() - from.getTime()) / 3_600_000);
+const HOUR = 3_600_000;
+
+export const share = (hours: number, from: Date, to: Date, now = new Date()): number => {
+  const end = Math.min(to.getTime(), Math.ceil(now.getTime() / HOUR) * HOUR);
+  const total = Math.ceil((end - from.getTime()) / HOUR);
 
   return total > 0 ? Math.round((hours / total) * 1000) / 10 : 0;
 };

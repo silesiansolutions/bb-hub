@@ -38,11 +38,12 @@ export const AirSensorCard = ({ sensor, now }: { sensor: AirSensor; now: number 
           )}
           <Flex vertical gap={8} style={current ? undefined : { opacity: 0.6 }}>
           {caqi ? (
-            <Flex gap={8} align="center" style={caqiCurrent ? undefined : { opacity: 0.6 }}>
+            <Flex gap={8} align="center" wrap style={caqiCurrent ? undefined : { opacity: 0.6 }}>
               <Tag color={caqiCurrent ? CAQI_COLORS[caqiLevel(caqi.value)] : 'default'}>{t.air.caqi[caqiLevel(caqi.value)]}</Tag>
               <Typography.Text type="secondary">
                 {t.metrics.caqi}: {formatMetric('caqi', caqi.value, format)}
               </Typography.Text>
+              {current && !caqiCurrent ? <StaleTag /> : null}
             </Flex>
           ) : null}
           <Flex wrap gap={16}>
@@ -54,6 +55,7 @@ export const AirSensorCard = ({ sensor, now }: { sensor: AirSensor; now: number 
                     <Flex key={metric} vertical style={readingIsCurrent(reading, now) ? undefined : { opacity: 0.6 }}>
                       <Typography.Text type="secondary">{t.metrics[metric]}</Typography.Text>
                       <Typography.Text strong>{formatMetric(metric, reading.value, format)}</Typography.Text>
+                      {current && !readingIsCurrent(reading, now) ? <StaleTag /> : null}
                     </Flex>,
                   ]
                 : [];

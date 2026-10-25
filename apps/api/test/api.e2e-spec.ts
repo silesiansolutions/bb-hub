@@ -119,11 +119,16 @@ describe('api (e2e)', () => {
   });
 
   it('reports hourly coverage per source and city-wide daily air statistics', async () => {
-    const coverage = await get('/api/stats/coverage?from=2026-10-24T22:00:00Z&to=2026-10-25T23:00:00Z').expect(200);
+    await aggregates.bulkParking([
+      { parkingId: 3, at: new Date('2026-10-19T08:10:00Z'), available: 50, capacity: 132 },
+      { parkingId: 3, at: new Date('2026-10-19T09:10:00Z'), available: 60, capacity: 132 },
+    ]);
+
+    const coverage = await get('/api/stats/coverage?from=2026-10-18T22:00:00Z&to=2026-10-19T22:00:00Z').expect(200);
 
     expect(coverage.headers['cache-control']).toBe('public, max-age=3600');
-    expect(coverage.body.parkings[0]).toEqual({ id: 1, name: 'MZD Parking - Dmowskiego', hours: 2, share: 8 });
-    expect(coverage.body.parkings[1]).toMatchObject({ id: 2, hours: 0, share: 0 });
+    expect(coverage.body.parkings[2]).toEqual({ id: 3, name: 'MZD Parking - Paderewskiego', hours: 2, share: 8.3 });
+    expect(coverage.body.parkings[0]).toMatchObject({ id: 1, hours: 0, share: 0 });
     expect(coverage.body.air).toEqual([]);
 
     const city = await get('/api/stats/air/daily?from=2026-09-01T00:00:00Z&to=2026-09-02T00:00:00Z').expect(200);

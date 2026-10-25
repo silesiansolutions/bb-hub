@@ -70,14 +70,16 @@ export interface Dropped {
   noDate: number;
   duplicate: number;
   noValue: number;
+  unknownSensor: number;
 }
 
-export const emptyDropped = (): Dropped => ({ noDate: 0, duplicate: 0, noValue: 0 });
+export const emptyDropped = (): Dropped => ({ noDate: 0, duplicate: 0, noValue: 0, unknownSensor: 0 });
 
 export const addDropped = (total: Dropped, more: Dropped): Dropped => ({
   noDate: total.noDate + more.noDate,
   duplicate: total.duplicate + more.duplicate,
   noValue: total.noValue + more.noValue,
+  unknownSensor: total.unknownSensor + more.unknownSensor,
 });
 
 const readRows = async <T extends { date?: string }>(files: string[]): Promise<{ rows: T[]; dropped: Dropped }> => {
@@ -97,7 +99,7 @@ const readRows = async <T extends { date?: string }>(files: string[]): Promise<{
     .sort((a, b) => a.date!.localeCompare(b.date!))
     .filter((row) => !seen.has(row.date!) && seen.add(row.date!) !== undefined);
 
-  return { rows, dropped: { noDate: all.length - dated.length, duplicate: dated.length - rows.length, noValue: 0 } };
+  return { rows, dropped: { noDate: all.length - dated.length, duplicate: dated.length - rows.length, noValue: 0, unknownSensor: 0 } };
 };
 
 export interface ParkingDayResult {
@@ -133,10 +135,13 @@ export const airSamples = async (id: number, files: string[], city: string | und
   const samples: AirSample[] = [];
   let outsideCity = 0;
   let noValue = 0;
+  let unknownSensor = 0;
   let lastInCity: Date | undefined;
 
   for (const row of rows) {
     const parsed = parseSyngeos(row.originalData);
+
+    unknownSensor += parsed?.unknownSensors ?? 0;
 
     if (!parsed || parsed.values.length === 0) {
       noValue++;
@@ -157,5 +162,5 @@ export const airSamples = async (id: number, files: string[], city: string | und
     }
   }
 
-  return { samples, outsideCity, lastInCity, dropped: { ...dropped, noValue } };
+  return { samples, outsideCity, lastInCity, dropped: { ...dropped, noValue, unknownSensor } };
 };
