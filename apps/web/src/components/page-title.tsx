@@ -9,7 +9,18 @@ export const useDocumentTitle = (title: string) => {
   const { t } = useI18n();
 
   useEffect(() => {
-    document.title = `${title} | ${t.site.name}`;
+    const wanted = `${title} | ${t.site.name}`;
+    const apply = () => {
+      if (document.title !== wanted) {
+        document.title = wanted;
+      }
+    };
+    const observer = new MutationObserver(apply);
+
+    apply();
+    observer.observe(document.head, { subtree: true, childList: true, characterData: true });
+
+    return () => observer.disconnect();
   }, [title, t.site.name]);
 };
 
