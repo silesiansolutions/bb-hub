@@ -68,6 +68,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
+      - run: pnpm test
       - run: pnpm build
       - run: pnpm typecheck
       - run: test -f out/index.html && test -f out/parking.html && test -f out/air-sensor.html

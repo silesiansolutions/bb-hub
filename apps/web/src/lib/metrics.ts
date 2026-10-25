@@ -35,10 +35,10 @@ export const METRIC_UNITS: Record<MetricKey, string> = {
 export type CaqiLevel = 'veryGood' | 'good' | 'medium' | 'sufficient' | 'bad';
 
 export const caqiLevel = (value: number): CaqiLevel => {
-  if (value <= 25) return 'veryGood';
-  if (value <= 50) return 'good';
-  if (value <= 75) return 'medium';
-  if (value <= 100) return 'sufficient';
+  if (value < 25) return 'veryGood';
+  if (value < 50) return 'good';
+  if (value < 75) return 'medium';
+  if (value < 100) return 'sufficient';
   return 'bad';
 };
 
