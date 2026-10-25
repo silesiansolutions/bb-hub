@@ -8,6 +8,8 @@ import type { ReactNode } from 'react';
 import { useI18n, type Locale } from '@/i18n';
 import { useThemeMode } from '@/lib/theme';
 
+import { DataProviders } from './providers';
+
 const sectionOf = (pathname: string) => {
   if (pathname.startsWith('/parking')) return '/parkings';
   if (pathname.startsWith('/air')) return '/air';
@@ -66,7 +68,14 @@ export const Shell = ({ children }: { children: ReactNode }) => {
           </Flex>
         </Flex>
       </Layout.Header>
-      <Layout.Content style={{ padding: 16, maxWidth: 1200, width: '100%', margin: '0 auto' }}>{children}</Layout.Content>
+      <Layout.Content style={{ padding: 16, maxWidth: 1200, width: '100%', margin: '0 auto' }}>
+        <noscript>
+          <div role="alert" style={{ padding: 12, border: `1px solid ${token.colorWarningBorder}`, background: token.colorWarningBg }}>
+            {t.status.noscript}
+          </div>
+        </noscript>
+        <DataProviders>{children}</DataProviders>
+      </Layout.Content>
       <Layout.Footer style={{ maxWidth: 1200, width: '100%', margin: '0 auto', padding: '16px' }}>
         <Typography.Text type="secondary">{t.site.sources}</Typography.Text>
       </Layout.Footer>

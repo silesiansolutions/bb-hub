@@ -54,19 +54,23 @@ export const Providers = ({ children }: { children: ReactNode }) => {
       >
         <AntdApp>
           <Environment>
-            <Suspense>
-              <Refine
-                dataProvider={dataProvider}
-                routerProvider={routerProvider}
-                resources={resources}
-                options={{ syncWithLocation: false, disableTelemetry: true }}
-              >
-                {children}
-              </Refine>
-            </Suspense>
+            {children}
           </Environment>
         </AntdApp>
       </ConfigProvider>
     </AntdRegistry>
   );
 };
+
+export const DataProviders = ({ children }: { children: ReactNode }) => (
+  <Suspense>
+    <Refine
+      dataProvider={dataProvider}
+      routerProvider={routerProvider}
+      resources={resources}
+      options={{ syncWithLocation: false, disableTelemetry: true }}
+    >
+      {children}
+    </Refine>
+  </Suspense>
+);
