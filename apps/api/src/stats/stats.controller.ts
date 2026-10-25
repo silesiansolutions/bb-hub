@@ -1,4 +1,4 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import { Controller, Get, Query, ServiceUnavailableException } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 
@@ -9,7 +9,7 @@ import { PublicCache } from '../common/cache';
 import { DAILY_RANGE, RangeQuery, resolveRange } from '../common/range';
 
 import { addSensorDays, CityDay, share, sortedCityDays } from './merge';
-import { ResultCache } from './result-cache';
+import { CacheBusyError, ResultCache } from './result-cache';
 
 
 @ApiTags('stats')
@@ -25,7 +25,7 @@ export class StatsController {
   async coverage(@Query() query: RangeQuery) {
     const { from, to } = resolveRange(query, DAILY_RANGE.defaultSpan, DAILY_RANGE.maxSpan, 'day');
 
-    return this.cache.get(`coverage:${from.toISOString()}:${to.toISOString()}`, () => this.loadCoverage(from, to));
+    return this.cached(`coverage:${from.toISOString()}:${to.toISOString()}`, () => this.loadCoverage(from, to));
   }
 
   @Get('air/daily')
@@ -33,7 +33,19 @@ export class StatsController {
   async airDaily(@Query() query: RangeQuery) {
     const { from, to } = resolveRange(query, DAILY_RANGE.defaultSpan, DAILY_RANGE.maxSpan, 'day');
 
-    return this.cache.get(`air:${from.toISOString()}:${to.toISOString()}`, () => this.loadAirDaily(from, to));
+    return this.cached(`air:${from.toISOString()}:${to.toISOString()}`, () => this.loadAirDaily(from, to));
+  }
+
+  private async cached(key: string, load: () => Promise<unknown>) {
+    try {
+      return await this.cache.get(key, load);
+    } catch (error) {
+      if (error instanceof CacheBusyError) {
+        throw new ServiceUnavailableException(error.message);
+      }
+
+      throw error;
+    }
   }
 
   private async loadCoverage(from: Date, to: Date) {

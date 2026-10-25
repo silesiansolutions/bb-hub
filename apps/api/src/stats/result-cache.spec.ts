@@ -1,4 +1,4 @@
-import { ResultCache } from './result-cache';
+import { CacheBusyError, ResultCache } from './result-cache';
 
 describe('ResultCache', () => {
   it('serves a result for an hour, then loads it again', async () => {
@@ -44,5 +44,27 @@ describe('ResultCache', () => {
 
     expect(await Promise.all([cache.get('a', load(1)), cache.get('b', load(2)), cache.get('c', load(3))])).toEqual([1, 2, 3]);
     expect(peak).toBe(1);
+  });
+
+  it('refuses new uncached keys while four loads wait, but still serves cached ones', async () => {
+    const cache = new ResultCache<number>(() => 0);
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+
+    await cache.get('hot', async () => 0);
+
+    const pending = [1, 2, 3, 4].map((n) => cache.get(`k${n}`, async () => {
+      await gate;
+
+      return n;
+    }));
+
+    await expect(cache.get('k5', async () => 5)).rejects.toBeInstanceOf(CacheBusyError);
+    expect(await cache.get('hot', async () => -1)).toBe(0);
+    release();
+    expect(await Promise.all(pending)).toEqual([1, 2, 3, 4]);
+    expect(await cache.get('k5', async () => 5)).toBe(5);
   });
 });
