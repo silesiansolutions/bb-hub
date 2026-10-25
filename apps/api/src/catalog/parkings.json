@@ -1,0 +1,30 @@
+[
+  {
+    "id": 1,
+    "provider": "controlla",
+    "name": "MZD Parking - Dmowskiego",
+    "street": "ul. Dmowskiego",
+    "url": "https://parking.controlla.pl/parking-counting-api/cc_ajax/91/"
+  },
+  {
+    "id": 2,
+    "provider": "controlla",
+    "name": "MZD Parking - Warszawska",
+    "street": "ul. Warszawska",
+    "url": "https://parking.controlla.pl/parking-counting-api/cc_ajax/133/"
+  },
+  {
+    "id": 3,
+    "provider": "controlla",
+    "name": "MZD Parking - Paderewskiego",
+    "street": "ul. Paderewskiego",
+    "url": "https://parking.controlla.pl/parking-counting-api/cc_ajax/157/"
+  },
+  {
+    "id": 4,
+    "provider": "controlla",
+    "name": "MZD Parking - Rychlińskiego",
+    "street": "ul. Rychlińskiego",
+    "url": "https://parking.controlla.pl/parking-counting-api/cc_ajax/159/"
+  }
+]

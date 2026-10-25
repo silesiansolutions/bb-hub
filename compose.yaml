@@ -1,0 +1,39 @@
+name: bb-hub
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    image: ghcr.io/silesiansolutions/bb-hub-api:local
+    restart: unless-stopped
+    environment:
+      PORT: 3001
+      MONGODB_URI: ${MONGODB_URI:-mongodb://mongo:27017/bb}
+      REDIS_URL: redis://redis:6379
+      ORIGIN_SECRET: ${ORIGIN_SECRET:-}
+    ports:
+      - 127.0.0.1:3001:3001
+    mem_limit: 256m
+    memswap_limit: 256m
+    depends_on:
+      - redis
+
+  redis:
+    image: redis:8.10.2-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--maxmemory", "32mb", "--maxmemory-policy", "noeviction", "--save", "", "--appendonly", "no"]
+    mem_limit: 64m
+    memswap_limit: 64m
+
+  mongo:
+    image: mongo:8.0.34
+    profiles: ["local-db"]
+    command: ["mongod", "--wiredTigerCacheSizeGB", "0.25"]
+    ports:
+      - 127.0.0.1:27017:27017
+    volumes:
+      - mongo:/data/db
+
+volumes:
+  mongo:

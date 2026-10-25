@@ -1,0 +1,9 @@
+packages:
+  - apps/*
+
+allowBuilds:
+  '@parcel/watcher': false
+  '@scarf/scarf': false
+  '@swc/core': true
+  msgpackr-extract: true
+  unrs-resolver: true

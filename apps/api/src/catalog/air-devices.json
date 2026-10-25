@@ -1,0 +1,314 @@
+[
+  {
+    "id": 1,
+    "provider": "syngeos",
+    "device": 93,
+    "name": "Kazimierza Przerwy-Tetmajera 18"
+  },
+  {
+    "id": 2,
+    "provider": "syngeos",
+    "device": 252,
+    "name": "Bobrowa 4"
+  },
+  {
+    "id": 3,
+    "provider": "syngeos",
+    "device": 1329,
+    "name": "Bohaterów Warszawy 20"
+  },
+  {
+    "id": 4,
+    "provider": "syngeos",
+    "device": 1330,
+    "name": "Lipnicka 226"
+  },
+  {
+    "id": 5,
+    "provider": "syngeos",
+    "device": 1384,
+    "name": "Cieszyńska 393"
+  },
+  {
+    "id": 6,
+    "provider": "syngeos",
+    "device": 1385,
+    "name": "Szkoła Podstawowa nr 26 im. Zygmunta Lubertowicza"
+  },
+  {
+    "id": 7,
+    "provider": "syngeos",
+    "device": 1386,
+    "name": "Pocztowa 28A"
+  },
+  {
+    "id": 8,
+    "provider": "syngeos",
+    "device": 1387,
+    "name": "Czereśniowa 20"
+  },
+  {
+    "id": 9,
+    "provider": "syngeos",
+    "device": 1388,
+    "name": "Karpacka 150"
+  },
+  {
+    "id": 10,
+    "provider": "syngeos",
+    "device": 1389,
+    "name": "Wyzwolenia 343"
+  },
+  {
+    "id": 11,
+    "provider": "syngeos",
+    "device": 1390,
+    "name": "Żywiecka 239"
+  },
+  {
+    "id": 12,
+    "provider": "syngeos",
+    "device": 1427,
+    "name": "Zapłocie Duże 1"
+  },
+  {
+    "id": 13,
+    "provider": "syngeos",
+    "device": 7388,
+    "name": "Sternicza 8A"
+  },
+  {
+    "id": 14,
+    "provider": "syngeos",
+    "device": 7412,
+    "name": "Beskidzkie Centrum Onkologii - Szpital Miejski im. Jana Pawla II"
+  },
+  {
+    "id": 15,
+    "provider": "syngeos",
+    "device": 7426,
+    "name": "Zapłocie Duże 171"
+  },
+  {
+    "id": 16,
+    "provider": "syngeos",
+    "device": 7428,
+    "name": "Aleja Armii Krajowej 464"
+  },
+  {
+    "id": 17,
+    "provider": "syngeos",
+    "device": 7438,
+    "name": "Jana III Sobieskiego 307A"
+  },
+  {
+    "id": 18,
+    "provider": "syngeos",
+    "device": 7440,
+    "name": "Kosynierów 12"
+  },
+  {
+    "id": 19,
+    "provider": "syngeos",
+    "device": 7456,
+    "name": "Pocztowa 43"
+  },
+  {
+    "id": 20,
+    "provider": "syngeos",
+    "device": 7458,
+    "name": "Doliny Miętusiej 3"
+  },
+  {
+    "id": 21,
+    "provider": "syngeos",
+    "device": 7460,
+    "name": "Aleja Armii Krajowej 101"
+  },
+  {
+    "id": 22,
+    "provider": "syngeos",
+    "device": 7467,
+    "name": "Dom Kultury w Olszówce 2"
+  },
+  {
+    "id": 23,
+    "provider": "syngeos",
+    "device": 7481,
+    "name": "Serdeczna 4"
+  },
+  {
+    "id": 24,
+    "provider": "syngeos",
+    "device": 7483,
+    "name": "Juliana Ursyna Niemcewicza 17A"
+  },
+  {
+    "id": 25,
+    "provider": "syngeos",
+    "device": 7485,
+    "name": "Juliusza Słowackiego 27B"
+  },
+  {
+    "id": 26,
+    "provider": "syngeos",
+    "device": 7491,
+    "name": "Podchorążych 13"
+  },
+  {
+    "id": 27,
+    "provider": "syngeos",
+    "device": 7511,
+    "name": "Żurawia 10"
+  },
+  {
+    "id": 28,
+    "provider": "syngeos",
+    "device": 7514,
+    "name": "Kościół MB Pocieszenia 2"
+  },
+  {
+    "id": 29,
+    "provider": "syngeos",
+    "device": 7515,
+    "name": "Mieszka I 3"
+  },
+  {
+    "id": 30,
+    "provider": "syngeos",
+    "device": 7523,
+    "name": "Ikara 6"
+  },
+  {
+    "id": 31,
+    "provider": "syngeos",
+    "device": 7526,
+    "name": "Przechód 2"
+  },
+  {
+    "id": 32,
+    "provider": "syngeos",
+    "device": 7535,
+    "name": "Dom Kultury w Olszówce 1"
+  },
+  {
+    "id": 33,
+    "provider": "syngeos",
+    "device": 7550,
+    "name": "Tartaczna 1"
+  },
+  {
+    "id": 34,
+    "provider": "syngeos",
+    "device": 7562,
+    "name": "Jutrzenki 18"
+  },
+  {
+    "id": 35,
+    "provider": "syngeos",
+    "device": 7579,
+    "name": "Kościół MB Pocieszenia 1"
+  },
+  {
+    "id": 36,
+    "provider": "syngeos",
+    "device": 7586,
+    "name": "Lipnicka 133"
+  },
+  {
+    "id": 37,
+    "provider": "syngeos",
+    "device": 7944,
+    "name": "Karpacka 125"
+  },
+  {
+    "id": 38,
+    "provider": "syngeos",
+    "device": 8209,
+    "name": "Podchorążych 13"
+  },
+  {
+    "id": 39,
+    "provider": "syngeos",
+    "device": 8212,
+    "name": "Aleja Armii Krajowej 220"
+  },
+  {
+    "id": 40,
+    "provider": "syngeos",
+    "device": 8283,
+    "name": "Juliusza Słowackiego 27B"
+  },
+  {
+    "id": 41,
+    "provider": "syngeos",
+    "device": 8307,
+    "name": "Plac Bolesława Chrobrego 3"
+  },
+  {
+    "id": 42,
+    "provider": "syngeos",
+    "device": 8317,
+    "name": "Jana III Sobieskiego 307A"
+  },
+  {
+    "id": 43,
+    "provider": "syngeos",
+    "device": 8327,
+    "name": "Juliana Ursyna Niemcewicza 17A"
+  },
+  {
+    "id": 44,
+    "provider": "syngeos",
+    "device": 8352,
+    "name": "plac Ratuszowy 1"
+  },
+  {
+    "id": 45,
+    "provider": "syngeos",
+    "device": 8455,
+    "name": "DW940"
+  },
+  {
+    "id": 46,
+    "provider": "syngeos",
+    "device": 10094,
+    "name": "Katowicka 63"
+  },
+  {
+    "id": 47,
+    "provider": "syngeos",
+    "device": 10138,
+    "name": "Sternicza 8A"
+  },
+  {
+    "id": 48,
+    "provider": "syngeos",
+    "device": 10142,
+    "name": "Doliny Miętusiej 3"
+  },
+  {
+    "id": 49,
+    "provider": "syngeos",
+    "device": 10151,
+    "name": "Jakuba Jasińskiego 1"
+  },
+  {
+    "id": 50,
+    "provider": "syngeos",
+    "device": 10313,
+    "name": "Tartaczna 1"
+  },
+  {
+    "id": 51,
+    "provider": "syngeos",
+    "device": 10322,
+    "name": "Mieszka I 3"
+  },
+  {
+    "id": 52,
+    "provider": "syngeos",
+    "device": 10336,
+    "name": "plac Adama Mickiewicza 3"
+  }
+]

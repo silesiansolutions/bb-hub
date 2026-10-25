@@ -1,0 +1,4 @@
+[
+  { "id": "1", "date": "2025-09-20T09:00:00.000Z", "originalData": { "city": "Bielsko-Biała", "sensors": [{ "name": "no2", "data": [{ "read_at": "2025-09-20T10:00:00+02:00", "value": 18 }] }] } },
+  { "id": "1", "date": "2025-09-20T12:00:00.000Z", "originalData": { "city": "Bielsko-Biała", "sensors": [{ "name": "no2", "data": [{ "read_at": "2025-09-20T13:00:00+02:00", "value": 20 }] }] } }
+]
