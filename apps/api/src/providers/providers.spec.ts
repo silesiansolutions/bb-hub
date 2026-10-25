@@ -39,8 +39,15 @@ describe('parseSyngeos', () => {
         { metric: 'pm25', at: new Date('2026-10-25T16:52:13Z'), value: 3.55 },
         { metric: 'pm1', at: new Date('2025-06-30T20:00:00Z'), value: 4 },
       ],
-      unknownSensors: 1,
+      unknownSensors: ['unknown_gas'],
+      nonNumeric: 0,
     });
+  });
+
+  it('counts a known sensor whose value is not a number', () => {
+    const odd = { ...device, sensors: [{ name: 'pm10', data: [{ read_at: '2026-10-25T17:52:13+01:00', value: 'n/a' }] }, { name: 'pm25', data: [{ value: null }] }] };
+
+    expect(parseSyngeos(odd)).toMatchObject({ values: [], unknownSensors: [], nonNumeric: 1 });
   });
 
   it('tells a relocated device from a Bielsko-Biała one', () => {

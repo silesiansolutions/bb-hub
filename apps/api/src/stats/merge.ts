@@ -35,5 +35,5 @@ export const share = (hours: number, from: Date, to: Date, now = new Date()): nu
   const end = Math.min(to.getTime(), Math.ceil(now.getTime() / HOUR) * HOUR);
   const total = Math.ceil((end - from.getTime()) / HOUR);
 
-  return total > 0 ? Math.round((hours / total) * 1000) / 10 : 0;
+  return total > 0 ? Math.min(100, Math.round((hours / total) * 1000) / 10) : 0;
 };

@@ -71,15 +71,19 @@ export interface Dropped {
   duplicate: number;
   noValue: number;
   unknownSensor: number;
+  nonNumeric: number;
+  unknownNames: string[];
 }
 
-export const emptyDropped = (): Dropped => ({ noDate: 0, duplicate: 0, noValue: 0, unknownSensor: 0 });
+export const emptyDropped = (): Dropped => ({ noDate: 0, duplicate: 0, noValue: 0, unknownSensor: 0, nonNumeric: 0, unknownNames: [] });
 
 export const addDropped = (total: Dropped, more: Dropped): Dropped => ({
   noDate: total.noDate + more.noDate,
   duplicate: total.duplicate + more.duplicate,
   noValue: total.noValue + more.noValue,
   unknownSensor: total.unknownSensor + more.unknownSensor,
+  nonNumeric: total.nonNumeric + more.nonNumeric,
+  unknownNames: [...new Set([...total.unknownNames, ...more.unknownNames])].sort(),
 });
 
 const readRows = async <T extends { date?: string }>(files: string[]): Promise<{ rows: T[]; dropped: Dropped }> => {
@@ -99,7 +103,7 @@ const readRows = async <T extends { date?: string }>(files: string[]): Promise<{
     .sort((a, b) => a.date!.localeCompare(b.date!))
     .filter((row) => !seen.has(row.date!) && seen.add(row.date!) !== undefined);
 
-  return { rows, dropped: { noDate: all.length - dated.length, duplicate: dated.length - rows.length, noValue: 0, unknownSensor: 0 } };
+  return { rows, dropped: { noDate: all.length - dated.length, duplicate: dated.length - rows.length, noValue: 0, unknownSensor: 0, nonNumeric: 0, unknownNames: [] } };
 };
 
 export interface ParkingDayResult {
@@ -136,12 +140,16 @@ export const airSamples = async (id: number, files: string[], city: string | und
   let outsideCity = 0;
   let noValue = 0;
   let unknownSensor = 0;
+  let nonNumeric = 0;
+  const unknownNames = new Set<string>();
   let lastInCity: Date | undefined;
 
   for (const row of rows) {
     const parsed = parseSyngeos(row.originalData);
 
-    unknownSensor += parsed?.unknownSensors ?? 0;
+    unknownSensor += parsed?.unknownSensors.length ?? 0;
+    nonNumeric += parsed?.nonNumeric ?? 0;
+    parsed?.unknownSensors.forEach((name) => unknownNames.add(name));
 
     if (!parsed || parsed.values.length === 0) {
       noValue++;
@@ -162,5 +170,5 @@ export const airSamples = async (id: number, files: string[], city: string | und
     }
   }
 
-  return { samples, outsideCity, lastInCity, dropped: { ...dropped, noValue, unknownSensor } };
+  return { samples, outsideCity, lastInCity, dropped: { ...dropped, noValue, unknownSensor, nonNumeric, unknownNames: [...unknownNames].sort() } };
 };
