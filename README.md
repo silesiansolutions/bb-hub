@@ -37,7 +37,7 @@ All routes sit under `/api`; interactive documentation at `/api/docs`.
 | `GET /api/stats/air/daily?from&to` | city-wide daily average (weighted by the number of measurements), minimum and maximum per metric across sensors |
 | `GET /api/health` | MongoDB and Redis status |
 
-When `ORIGIN_SECRET` is set, every API route except `/api/health` requires the `x-origin-secret` header, so only the edge proxy reaches the data. With `NODE_ENV=production` (the default in the image) the API refuses to start without it, unless `ORIGIN_SECRET_DISABLED=true`. The rate limit is keyed on `CF-Connecting-IP`, falling back to the socket address; `X-Forwarded-For` is ignored. Statistics routes allow 10 requests a minute per client and keep each result in memory for an hour. The documentation under `/api/docs` stays public. Successful responses carry `Cache-Control: public` (5 minutes, statistics 1 hour); errors are never cached.
+When `ORIGIN_SECRET` is set, every API route except `/api/health` requires the `x-origin-secret` header, so only the edge proxy reaches the data. With `NODE_ENV=production` (the default in the image; set it yourself when running `dist/main.js` outside the image) the API refuses to start without it, unless `ORIGIN_SECRET_DISABLED=true`. The rate limit is keyed on `CF-Connecting-IP`, falling back to the socket address; `X-Forwarded-For` is ignored. Statistics routes allow 10 requests a minute per client, compute one uncached result at a time and keep up to 24 results in memory for an hour. The documentation under `/api/docs` stays public. Successful responses carry `Cache-Control: public` (5 minutes, statistics 1 hour); errors are never cached.
 
 ## Development
 

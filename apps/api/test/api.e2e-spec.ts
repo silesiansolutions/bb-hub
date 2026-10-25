@@ -16,6 +16,7 @@ describe('api (e2e)', () => {
 
   beforeAll(async () => {
     process.env.ORIGIN_SECRET = SECRET;
+    process.env.CORS_ORIGIN = 'http://localhost:3002';
 
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
 
@@ -206,5 +207,13 @@ describe('api (e2e)', () => {
     }
 
     await hit().expect(429);
+  });
+
+  it('answers CORS only for the configured development origin', async () => {
+    const allowed = await get('/api/parkings').set('origin', 'http://localhost:3002').set('cf-connecting-ip', '203.0.113.90');
+    const other = await get('/api/parkings').set('origin', 'https://example.org').set('cf-connecting-ip', '203.0.113.91');
+
+    expect(allowed.headers['access-control-allow-origin']).toBe('http://localhost:3002');
+    expect(other.headers['access-control-allow-origin']).not.toBe('https://example.org');
   });
 });

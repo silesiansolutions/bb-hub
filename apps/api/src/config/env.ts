@@ -1,5 +1,5 @@
 import { plainToInstance, Type } from 'class-transformer';
-import { IsBooleanString, IsIn, IsInt, IsOptional, IsString, Max, Min, validateSync } from 'class-validator';
+import { IsIn, IsInt, IsOptional, IsString, Max, Min, validateSync } from 'class-validator';
 
 export class Env {
   @Type(() => Number)
@@ -23,7 +23,7 @@ export class Env {
   ORIGIN_SECRET?: string;
 
   @IsOptional()
-  @IsBooleanString()
+  @IsIn(['true', 'false'])
   ORIGIN_SECRET_DISABLED?: string;
 
   @IsOptional()
@@ -32,7 +32,8 @@ export class Env {
 }
 
 export const validateEnv = (raw: Record<string, unknown>): Env => {
-  const env = plainToInstance(Env, raw, { enableImplicitConversion: true });
+  const present = Object.fromEntries(Object.entries(raw).filter(([, value]) => value !== ''));
+  const env = plainToInstance(Env, present, { enableImplicitConversion: true });
   const errors = validateSync(env, { skipMissingProperties: false });
 
   if (errors.length > 0) {

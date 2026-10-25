@@ -7,27 +7,28 @@ export interface CityDay {
   metrics: Partial<Record<AirMetric, Stat & { sensors: number }>>;
 }
 
-export const mergeCityDays = (perSensor: { day: Date; value: MetricStats }[][]): CityDay[] => {
-  const days = new Map<number, CityDay>();
+export const addSensorDays = (days: Map<number, CityDay>, rows: { day: Date; value: MetricStats }[]): Map<number, CityDay> => {
+  for (const { day, value } of rows) {
+    const entry = days.get(day.getTime()) ?? { day, metrics: {} };
 
-  for (const rows of perSensor) {
-    for (const { day, value } of rows) {
-      const entry = days.get(day.getTime()) ?? { day, metrics: {} };
+    for (const [metric, stat] of Object.entries(value) as [AirMetric, Stat][]) {
+      const seen = entry.metrics[metric];
 
-      for (const [metric, stat] of Object.entries(value) as [AirMetric, Stat][]) {
-        const seen = entry.metrics[metric];
-
-        entry.metrics[metric] = seen
-          ? { n: seen.n + stat.n, s: seen.s + stat.s, lo: Math.min(seen.lo, stat.lo), hi: Math.max(seen.hi, stat.hi), sensors: seen.sensors + 1 }
-          : { ...stat, sensors: 1 };
-      }
-
-      days.set(day.getTime(), entry);
+      entry.metrics[metric] = seen
+        ? { n: seen.n + stat.n, s: seen.s + stat.s, lo: Math.min(seen.lo, stat.lo), hi: Math.max(seen.hi, stat.hi), sensors: seen.sensors + 1 }
+        : { ...stat, sensors: 1 };
     }
+
+    days.set(day.getTime(), entry);
   }
 
-  return [...days.values()].sort((a, b) => a.day.getTime() - b.day.getTime());
+  return days;
 };
+
+export const sortedCityDays = (days: Map<number, CityDay>): CityDay[] => [...days.values()].sort((a, b) => a.day.getTime() - b.day.getTime());
+
+export const mergeCityDays = (perSensor: { day: Date; value: MetricStats }[][]): CityDay[] =>
+  sortedCityDays(perSensor.reduce((days, rows) => addSensorDays(days, rows), new Map<number, CityDay>()));
 
 const HOUR = 3_600_000;
 

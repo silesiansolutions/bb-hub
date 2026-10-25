@@ -8,7 +8,7 @@ import { AIR_DEVICES, PARKINGS } from '../catalog/catalog';
 import { PublicCache } from '../common/cache';
 import { DAILY_RANGE, RangeQuery, resolveRange } from '../common/range';
 
-import { mergeCityDays, share } from './merge';
+import { addSensorDays, CityDay, share, sortedCityDays } from './merge';
 import { ResultCache } from './result-cache';
 
 
@@ -56,9 +56,13 @@ export class StatsController {
   }
 
   private async loadAirDaily(from: Date, to: Date) {
-    const perSensor = await Promise.all(AIR_DEVICES.map((a) => this.aggregates.airDaily(a.id, from, to)));
+    const days = new Map<number, CityDay>();
 
-    return mergeCityDays(perSensor).map(({ day, metrics }) => ({
+    for (const device of AIR_DEVICES) {
+      addSensorDays(days, await this.aggregates.airDaily(device.id, from, to));
+    }
+
+    return sortedCityDays(days).map(({ day, metrics }) => ({
       day,
       metrics: Object.fromEntries(
         Object.entries(metrics).flatMap(([metric, stat]) => (stat ? [[metric, { ...statView(stat), sensors: stat.sensors }]] : [])),
