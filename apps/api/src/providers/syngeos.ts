@@ -74,5 +74,13 @@ export const parseSyngeos = (body: unknown): SyngeosReading | undefined => {
   return { city: device.city, address: device.address, values };
 };
 
+const foldCity = (name: string): string =>
+  name
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .replace(/[łŁ]/g, 'l')
+    .toLowerCase()
+    .trim();
+
 export const isInCity = (reading: SyngeosReading, city: string): boolean =>
-  (reading.city ?? '').normalize('NFC').toLowerCase().includes(city.normalize('NFC').toLowerCase());
+  foldCity(reading.city ?? '').includes(foldCity(city));

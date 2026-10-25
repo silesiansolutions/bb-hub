@@ -46,4 +46,10 @@ describe('parseSyngeos', () => {
     expect(isInCity(parseSyngeos(device)!, 'Bielsko-Biała')).toBe(true);
     expect(isInCity(parseSyngeos({ ...device, city: 'UM Puck' })!, 'Bielsko-Biała')).toBe(false);
   });
+
+  it('matches the city spelled without Polish diacritics or in another case', () => {
+    expect(isInCity(parseSyngeos({ ...device, city: 'Bielsko-Biala' })!, 'Bielsko-Biała')).toBe(true);
+    expect(isInCity(parseSyngeos({ ...device, city: 'BIELSKO-BIAŁA ' })!, 'Bielsko-Biała')).toBe(true);
+    expect(isInCity(parseSyngeos({ ...device, city: 'Bielsko-Biała' })!, 'Bielsko-Biala')).toBe(true);
+  });
 });
