@@ -173,6 +173,14 @@ export class AggregatesService {
     });
   }
 
+  async parkingHours(id: number, from: Date, to: Date): Promise<number> {
+    return this.parking.countDocuments({ _id: { $gte: { p: id, h: from }, $lt: { p: id, h: to } } });
+  }
+
+  async airHours(id: number, from: Date, to: Date): Promise<number> {
+    return this.air.countDocuments({ _id: { $gte: { s: id, h: from }, $lt: { s: id, h: to } } });
+  }
+
   async ping(): Promise<void> {
     await this.connection.db?.admin().ping();
   }

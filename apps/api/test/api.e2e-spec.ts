@@ -110,6 +110,27 @@ describe('api (e2e)', () => {
     });
   });
 
+  it('reports hourly coverage per source and city-wide daily air statistics', async () => {
+    const coverage = await get('/api/stats/coverage?from=2026-10-25T00:00:00Z&to=2026-10-26T00:00:00Z').expect(200);
+
+    expect(coverage.headers['cache-control']).toBe('public, max-age=3600');
+    expect(coverage.body.parkings[0]).toEqual({ id: 1, name: 'MZD Parking - Dmowskiego', hours: 2, share: 8.3 });
+    expect(coverage.body.parkings[1]).toMatchObject({ id: 2, hours: 0, share: 0 });
+    expect(coverage.body.air).toEqual([]);
+
+    const city = await get('/api/stats/air/daily?from=2026-09-01T00:00:00Z&to=2026-09-02T00:00:00Z').expect(200);
+
+    expect(city.body).toEqual([
+      {
+        day: '2026-08-31T22:00:00.000Z',
+        metrics: {
+          pm25: { avg: 15, min: 10, max: 20, samples: 2, sensors: 1 },
+          temperature: { avg: 15, min: 15, max: 15, samples: 1, sensors: 1 },
+        },
+      },
+    ]);
+  });
+
   it('validates ids and ranges', async () => {
     await get('/api/parkings/999').expect(404);
     await get('/api/parkings/abc').expect(400);

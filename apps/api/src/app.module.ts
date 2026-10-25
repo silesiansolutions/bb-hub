@@ -11,6 +11,7 @@ import { OriginGuard } from './common/origin.guard';
 import { validateEnv } from './config/env';
 import { HealthController, RedisProbe } from './health/health.controller';
 import { ParkingController } from './parking/parking.controller';
+import { StatsController } from './stats/stats.controller';
 
 @Module({
   imports: [
@@ -34,7 +35,7 @@ import { ParkingController } from './parking/parking.controller';
     TerminusModule,
     AggregatesModule,
   ],
-  controllers: [ParkingController, AirController, HealthController],
+  controllers: [ParkingController, AirController, StatsController, HealthController],
   providers: [
     RedisProbe,
     { provide: APP_GUARD, useClass: OriginGuard },

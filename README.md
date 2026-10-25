@@ -33,6 +33,8 @@ All routes sit under `/api`; interactive documentation at `/api/docs`.
 | `GET /api/parkings/:id/hourly?from&to` | free spaces per hour, up to 31 days, last 24 hours by default |
 | `GET /api/parkings/:id/daily?from&to` | free spaces per day, up to 400 days, last 30 days by default |
 | `GET /api/air`, `/api/air/:id`, `/hourly`, `/daily` | the same for air sensors, per metric |
+| `GET /api/stats/coverage?from&to` | hours with data per source and their share of the range |
+| `GET /api/stats/air/daily?from&to` | city-wide daily average, minimum and maximum per metric across sensors |
 | `GET /api/health` | MongoDB and Redis status |
 
 When `ORIGIN_SECRET` is set, every route except `/api/health` requires the `x-origin-secret` header, so only the edge proxy reaches the origin.
