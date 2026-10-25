@@ -1,4 +1,5 @@
-import { Controller, Get, Query, ServiceUnavailableException } from '@nestjs/common';
+import { Controller, Get, Query, Res, ServiceUnavailableException } from '@nestjs/common';
+import type { Response } from 'express';
 import { ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 
@@ -22,25 +23,26 @@ export class StatsController {
 
   @Get('coverage')
   @PublicCache(3600)
-  async coverage(@Query() query: RangeQuery) {
+  async coverage(@Query() query: RangeQuery, @Res({ passthrough: true }) res: Response) {
     const { from, to } = resolveRange(query, DAILY_RANGE.defaultSpan, DAILY_RANGE.maxSpan, 'day');
 
-    return this.cached(`coverage:${from.toISOString()}:${to.toISOString()}`, () => this.loadCoverage(from, to));
+    return this.cached(res, `coverage:${from.toISOString()}:${to.toISOString()}`, () => this.loadCoverage(from, to));
   }
 
   @Get('air/daily')
   @PublicCache(3600)
-  async airDaily(@Query() query: RangeQuery) {
+  async airDaily(@Query() query: RangeQuery, @Res({ passthrough: true }) res: Response) {
     const { from, to } = resolveRange(query, DAILY_RANGE.defaultSpan, DAILY_RANGE.maxSpan, 'day');
 
-    return this.cached(`air:${from.toISOString()}:${to.toISOString()}`, () => this.loadAirDaily(from, to));
+    return this.cached(res, `air:${from.toISOString()}:${to.toISOString()}`, () => this.loadAirDaily(from, to));
   }
 
-  private async cached(key: string, load: () => Promise<unknown>) {
+  private async cached(res: Response, key: string, load: () => Promise<unknown>) {
     try {
       return await this.cache.get(key, load);
     } catch (error) {
       if (error instanceof CacheBusyError) {
+        res.setHeader('Retry-After', '30');
         throw new ServiceUnavailableException(error.message);
       }
 
