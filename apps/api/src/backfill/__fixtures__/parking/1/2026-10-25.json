@@ -1,0 +1,5 @@
+[
+  { "id": "1", "date": "2026-10-25T09:05:00.000Z", "availableSpots": 6, "totalSpots": 65 },
+  { "id": "1", "date": "2026-10-25T09:35:00.000Z", "availableSpots": "8", "totalSpots": "65" },
+  { "id": "1", "date": "not a date", "availableSpots": 1, "totalSpots": 65 }
+]
