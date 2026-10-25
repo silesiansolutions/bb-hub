@@ -15,6 +15,8 @@ interface RawAir {
   originalData?: unknown;
 }
 
+const READ_AT_TOLERANCE_MS = 5 * 60_000;
+
 const DAY_FILE = /^(\d{4}-\d{2}-\d{2})\.json$/;
 
 export interface SourceDays {
@@ -72,10 +74,12 @@ export interface Dropped {
   noValue: number;
   unknownSensor: number;
   nonNumeric: number;
+  noReadAt: number;
+  futureReadAt: number;
   unknownNames: string[];
 }
 
-export const emptyDropped = (): Dropped => ({ noDate: 0, duplicate: 0, noValue: 0, unknownSensor: 0, nonNumeric: 0, unknownNames: [] });
+export const emptyDropped = (): Dropped => ({ noDate: 0, duplicate: 0, noValue: 0, unknownSensor: 0, nonNumeric: 0, noReadAt: 0, futureReadAt: 0, unknownNames: [] });
 
 export const addDropped = (total: Dropped, more: Dropped): Dropped => ({
   noDate: total.noDate + more.noDate,
@@ -83,6 +87,8 @@ export const addDropped = (total: Dropped, more: Dropped): Dropped => ({
   noValue: total.noValue + more.noValue,
   unknownSensor: total.unknownSensor + more.unknownSensor,
   nonNumeric: total.nonNumeric + more.nonNumeric,
+  noReadAt: total.noReadAt + more.noReadAt,
+  futureReadAt: total.futureReadAt + more.futureReadAt,
   unknownNames: [...new Set([...total.unknownNames, ...more.unknownNames])].sort(),
 });
 
@@ -103,7 +109,7 @@ const readRows = async <T extends { date?: string }>(files: string[]): Promise<{
     .sort((a, b) => a.date!.localeCompare(b.date!))
     .filter((row) => !seen.has(row.date!) && seen.add(row.date!) !== undefined);
 
-  return { rows, dropped: { noDate: all.length - dated.length, duplicate: dated.length - rows.length, noValue: 0, unknownSensor: 0, nonNumeric: 0, unknownNames: [] } };
+  return { rows, dropped: { noDate: all.length - dated.length, duplicate: dated.length - rows.length, noValue: 0, unknownSensor: 0, nonNumeric: 0, noReadAt: 0, futureReadAt: 0, unknownNames: [] } };
 };
 
 export interface ParkingDayResult {
@@ -141,6 +147,8 @@ export const airSamples = async (id: number, files: string[], city: string | und
   let noValue = 0;
   let unknownSensor = 0;
   let nonNumeric = 0;
+  let noReadAt = 0;
+  let futureReadAt = 0;
   const unknownNames = new Set<string>();
   let lastInCity: Date | undefined;
 
@@ -166,9 +174,15 @@ export const airSamples = async (id: number, files: string[], city: string | und
     lastInCity = fetchedAt;
 
     for (const { metric, at, value } of parsed.values) {
-      samples.push({ deviceId: id, metric, at: at && at <= fetchedAt ? at : fetchedAt, value });
+      if (!at) {
+        noReadAt++;
+      } else if (at.getTime() > fetchedAt.getTime() + READ_AT_TOLERANCE_MS) {
+        futureReadAt++;
+      } else {
+        samples.push({ deviceId: id, metric, at, value });
+      }
     }
   }
 
-  return { samples, outsideCity, lastInCity, dropped: { ...dropped, noValue, unknownSensor, nonNumeric, unknownNames: [...unknownNames].sort() } };
+  return { samples, outsideCity, lastInCity, dropped: { ...dropped, noValue, unknownSensor, nonNumeric, noReadAt, futureReadAt, unknownNames: [...unknownNames].sort() } };
 };

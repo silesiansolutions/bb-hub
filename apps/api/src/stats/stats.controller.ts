@@ -1,5 +1,6 @@
 import { Controller, Get, Query } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 
 import { AggregatesService } from '../aggregates/aggregates.service';
 import { statView } from '../aggregates/hourly';
@@ -8,17 +9,34 @@ import { PublicCache } from '../common/cache';
 import { DAILY_RANGE, RangeQuery, resolveRange } from '../common/range';
 
 import { mergeCityDays, share } from './merge';
+import { ResultCache } from './result-cache';
 
 
 @ApiTags('stats')
+@Throttle({ default: { limit: 10, ttl: 60_000 } })
 @Controller('stats')
 export class StatsController {
+  private readonly cache = new ResultCache<unknown>();
+
   constructor(private readonly aggregates: AggregatesService) {}
 
   @Get('coverage')
   @PublicCache(3600)
   async coverage(@Query() query: RangeQuery) {
     const { from, to } = resolveRange(query, DAILY_RANGE.defaultSpan, DAILY_RANGE.maxSpan, 'day');
+
+    return this.cache.get(`coverage:${from.toISOString()}:${to.toISOString()}`, () => this.loadCoverage(from, to));
+  }
+
+  @Get('air/daily')
+  @PublicCache(3600)
+  async airDaily(@Query() query: RangeQuery) {
+    const { from, to } = resolveRange(query, DAILY_RANGE.defaultSpan, DAILY_RANGE.maxSpan, 'day');
+
+    return this.cache.get(`air:${from.toISOString()}:${to.toISOString()}`, () => this.loadAirDaily(from, to));
+  }
+
+  private async loadCoverage(from: Date, to: Date) {
     const parkings = await Promise.all(
       PARKINGS.map(async (p) => {
         const hours = await this.aggregates.parkingHours(p.id, from, to);
@@ -37,10 +55,7 @@ export class StatsController {
     return { from, to, parkings, air: air.filter((a) => a.hours > 0) };
   }
 
-  @Get('air/daily')
-  @PublicCache(3600)
-  async airDaily(@Query() query: RangeQuery) {
-    const { from, to } = resolveRange(query, DAILY_RANGE.defaultSpan, DAILY_RANGE.maxSpan, 'day');
+  private async loadAirDaily(from: Date, to: Date) {
     const perSensor = await Promise.all(AIR_DEVICES.map((a) => this.aggregates.airDaily(a.id, from, to)));
 
     return mergeCityDays(perSensor).map(({ day, metrics }) => ({

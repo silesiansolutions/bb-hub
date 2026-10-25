@@ -23,7 +23,7 @@ describe('bb-node reader', () => {
       { parkingId: 1, at: new Date('2026-10-25T09:05:00.000Z'), available: 6, capacity: 65 },
       { parkingId: 1, at: new Date('2026-10-25T09:35:00.000Z'), available: 8, capacity: 65 },
     ]);
-    expect(dropped).toEqual({ noDate: 1, duplicate: 0, noValue: 0, unknownSensor: 0, nonNumeric: 0, unknownNames: [] });
+    expect(dropped).toEqual({ noDate: 1, duplicate: 0, noValue: 0, unknownSensor: 0, nonNumeric: 0, noReadAt: 0, futureReadAt: 0, unknownNames: [] });
   });
 
   it('merges both trees by date, drops the duplicate fetch and keeps stale sensors at their own time', async () => {
@@ -36,7 +36,7 @@ describe('bb-node reader', () => {
       { deviceId: 1, metric: 'no2', at: new Date('2025-09-20T11:00:00Z'), value: 20 },
     ]);
     expect(result.lastInCity).toEqual(new Date('2025-09-20T12:00:00.000Z'));
-    expect(result.dropped).toEqual({ noDate: 0, duplicate: 1, noValue: 0, unknownSensor: 0, nonNumeric: 0, unknownNames: [] });
+    expect(result.dropped).toEqual({ noDate: 0, duplicate: 1, noValue: 0, unknownSensor: 0, nonNumeric: 0, noReadAt: 0, futureReadAt: 0, unknownNames: [] });
   });
 
   it('counts fetches from another town and keeps every town without a city filter', async () => {
@@ -46,8 +46,18 @@ describe('bb-node reader', () => {
       samples: [],
       outsideCity: 1,
       lastInCity: undefined,
-      dropped: { noDate: 0, duplicate: 0, noValue: 0, unknownSensor: 0, nonNumeric: 0, unknownNames: [] },
+      dropped: { noDate: 0, duplicate: 0, noValue: 0, unknownSensor: 0, nonNumeric: 0, noReadAt: 0, futureReadAt: 0, unknownNames: [] },
     });
     expect((await airSamples(3, files, undefined)).samples).toHaveLength(1);
+  });
+
+  it('skips samples without read_at or with read_at more than 5 minutes after the fetch', async () => {
+    const result = await airSamples(7, [join(FIXTURES, 'timing/climate/7/2025-05-01.json')], 'Bielsko-Biała');
+
+    expect(result.samples).toEqual([
+      { deviceId: 7, metric: 'pm10', at: new Date('2025-05-01T10:00:00Z'), value: 11 },
+      { deviceId: 7, metric: 'pm25', at: new Date('2025-05-01T10:04:00Z'), value: 7 },
+    ]);
+    expect(result.dropped).toMatchObject({ noReadAt: 1, futureReadAt: 1 });
   });
 });

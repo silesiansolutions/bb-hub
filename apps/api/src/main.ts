@@ -9,11 +9,16 @@ import { AppModule } from './app.module';
 
 export const configureApp = (app: NestExpressApplication): NestExpressApplication => {
   app.setGlobalPrefix('api');
-  app.set('trust proxy', true);
   app.disable('x-powered-by');
   app.use(helmet());
   app.useGlobalPipes(new ValidationPipe({ transform: true, whitelist: true, forbidNonWhitelisted: true }));
   app.enableShutdownHooks();
+
+  const corsOrigin = app.get(ConfigService).get<string>('CORS_ORIGIN');
+
+  if (corsOrigin) {
+    app.enableCors({ origin: corsOrigin, methods: ['GET'] });
+  }
 
   const document = SwaggerModule.createDocument(
     app,

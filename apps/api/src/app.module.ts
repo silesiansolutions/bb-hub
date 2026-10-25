@@ -29,8 +29,9 @@ import { StatsController } from './stats/stats.controller';
       throttlers: [{ ttl: 60_000, limit: 120 }],
       getTracker: (req: Record<string, unknown>) => {
         const headers = req.headers as Record<string, string | undefined> | undefined;
+        const socket = req.socket as { remoteAddress?: string } | undefined;
 
-        return headers?.['cf-connecting-ip'] ?? String(req.ip);
+        return headers?.['cf-connecting-ip'] ?? socket?.remoteAddress ?? 'unknown';
       },
     }),
     TerminusModule,

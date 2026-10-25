@@ -23,7 +23,7 @@ import { addDropped, airSamples, Dropped, emptyDropped, listSources, parkingRead
 })
 class BackfillModule {}
 
-const describe = (d: Dropped): string => `${d.noDate} without a date, ${d.duplicate} duplicate fetches, ${d.noValue} without values, ${d.unknownSensor} sensor values with an unknown name${d.unknownNames.length ? ` (${d.unknownNames.join(', ')})` : ''}, ${d.nonNumeric} non-numeric values`;
+const describe = (d: Dropped): string => `${d.noDate} without a date, ${d.duplicate} duplicate fetches, ${d.noValue} without values, ${d.unknownSensor} sensor values with an unknown name${d.unknownNames.length ? ` (${d.unknownNames.join(', ')})` : ''}, ${d.nonNumeric} non-numeric values, ${d.noReadAt} samples without read_at, ${d.futureReadAt} samples with read_at over 5 min after the fetch`;
 
 const run = async (): Promise<void> => {
   const { values } = parseArgs({

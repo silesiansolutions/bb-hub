@@ -11,7 +11,7 @@ services:
       PORT: 3001
       MONGODB_URI: ${MONGODB_URI:-mongodb://mongo:27017/bb}
       REDIS_URL: redis://redis:6379
-      ORIGIN_SECRET: ${ORIGIN_SECRET:-}
+      ORIGIN_SECRET: ${ORIGIN_SECRET:?set ORIGIN_SECRET, any value locally}
     ports:
       - 127.0.0.1:3001:3001
     mem_limit: 256m

@@ -182,4 +182,29 @@ describe('api (e2e)', () => {
     await hit('203.0.113.7').expect(429);
     await hit('203.0.113.8').expect(200);
   });
+
+  it('does not let a forwarded-for header pick the throttle key', async () => {
+    let throttled = 0;
+
+    for (let i = 0; i < 125; i++) {
+      const res = await request(app.getHttpServer())
+        .get('/api/parkings')
+        .set('x-origin-secret', SECRET)
+        .set('x-forwarded-for', `198.51.100.${i}`);
+
+      throttled += res.status === 429 ? 1 : 0;
+    }
+
+    expect(throttled).toBeGreaterThan(0);
+  });
+
+  it('limits statistics to 10 requests a minute per client', async () => {
+    const hit = () => request(app.getHttpServer()).get('/api/stats/coverage').set('x-origin-secret', SECRET).set('cf-connecting-ip', '203.0.113.50');
+
+    for (let i = 0; i < 10; i++) {
+      await hit().expect(200);
+    }
+
+    await hit().expect(429);
+  });
 });

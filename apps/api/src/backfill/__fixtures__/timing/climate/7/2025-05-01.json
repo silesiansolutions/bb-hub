@@ -1,0 +1,8 @@
+[
+  { "id": "7", "date": "2025-05-01T10:00:00.000Z", "originalData": { "city": "Bielsko-Biała", "sensors": [
+    { "name": "pm10", "data": [{ "read_at": "2025-05-01T12:00:00+02:00", "value": 11 }] },
+    { "name": "pm25", "data": [{ "read_at": "2025-05-01T12:04:00+02:00", "value": 7 }] },
+    { "name": "temperature", "data": [{ "read_at": "2025-05-01T12:06:00+02:00", "value": 15 }] },
+    { "name": "humidity", "data": [{ "value": 60 }] }
+  ] } }
+]

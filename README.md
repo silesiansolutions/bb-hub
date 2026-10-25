@@ -37,7 +37,7 @@ All routes sit under `/api`; interactive documentation at `/api/docs`.
 | `GET /api/stats/air/daily?from&to` | city-wide daily average (weighted by the number of measurements), minimum and maximum per metric across sensors |
 | `GET /api/health` | MongoDB and Redis status |
 
-When `ORIGIN_SECRET` is set, every API route except `/api/health` requires the `x-origin-secret` header, so only the edge proxy reaches the data. The documentation under `/api/docs` stays public. Successful responses carry `Cache-Control: public` (5 minutes, statistics 1 hour); errors are never cached.
+When `ORIGIN_SECRET` is set, every API route except `/api/health` requires the `x-origin-secret` header, so only the edge proxy reaches the data. With `NODE_ENV=production` (the default in the image) the API refuses to start without it, unless `ORIGIN_SECRET_DISABLED=true`. The rate limit is keyed on `CF-Connecting-IP`, falling back to the socket address; `X-Forwarded-For` is ignored. Statistics routes allow 10 requests a minute per client and keep each result in memory for an hour. The documentation under `/api/docs` stays public. Successful responses carry `Cache-Control: public` (5 minutes, statistics 1 hour); errors are never cached.
 
 ## Development
 
@@ -52,7 +52,7 @@ pnpm --filter @bb-hub/api start:dev
 
 Tests: `pnpm --filter @bb-hub/api test` for unit tests, `pnpm --filter @bb-hub/api test:e2e` with `MONGODB_URI` and `REDIS_URL` set; the e2e suite drops its database and refuses to run unless the database name ends with `_e2e`.
 
-The site: `pnpm --filter @bb-hub/web build` writes a static export to `apps/web/out`. It calls the API at `/api` on its own origin, as it does behind the edge proxy, so serve `out` and the API under one origin to try it locally. `pnpm --filter @bb-hub/web test` runs the unit tests.
+The site: `pnpm --filter @bb-hub/web build` writes a static export to `apps/web/out`; it calls the API at `/api` on its own origin, as it does behind the edge proxy. For local work, start the API with `CORS_ORIGIN=http://localhost:3002` (refused in production) and the site with `NEXT_PUBLIC_API_URL=http://localhost:3001/api pnpm --filter @bb-hub/web dev`. `pnpm --filter @bb-hub/web test` runs the unit tests.
 
 Importing a raw history in the `<type>/<id>/<YYYY-MM-DD>.json` layout; several trees are merged by reading time:
 
@@ -61,7 +61,7 @@ pnpm --filter @bb-hub/api build
 MONGODB_URI=... node apps/api/dist/backfill/backfill.js --dir <data> --dir <backup-data>
 ```
 
-Air readings from devices that report a town other than Bielsko-Biała are skipped; `--any-city` keeps them.
+Air readings from devices that report a town other than Bielsko-Biała are skipped; `--any-city` keeps them. Each measurement is counted once at its own `read_at`; a sample without `read_at`, or with `read_at` more than 5 minutes after the fetch, is skipped and counted in the log.
 
 ## License
 
