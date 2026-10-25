@@ -25,15 +25,23 @@ export const AirSensorCard = ({ sensor, now }: { sensor: AirSensor; now: number 
     <Card
       size="small"
       title={<Link href={{ pathname: '/air-sensor', query: { id: sensor.id } }}>{sensor.name}</Link>}
-      extra={current ? null : <StaleTag />}
+      styles={{ title: { whiteSpace: 'normal' } }}
       style={{ height: '100%' }}
     >
       {latest ? (
-        <Flex vertical gap={8} style={current ? undefined : { opacity: 0.6 }}>
+        <Flex vertical gap={8}>
+          {current ? null : (
+            <Flex>
+              <StaleTag />
+            </Flex>
+          )}
+          <Flex vertical gap={8} style={current ? undefined : { opacity: 0.6 }}>
           {caqi ? (
             <Flex gap={8} align="center">
               <Tag color={current ? CAQI_COLORS[caqiLevel(caqi.value)] : 'default'}>{t.air.caqi[caqiLevel(caqi.value)]}</Tag>
-              <Typography.Text type="secondary">{formatMetric('caqi', caqi.value, format)}</Typography.Text>
+              <Typography.Text type="secondary">
+                {t.metrics.caqi}: {formatMetric('caqi', caqi.value, format)}
+              </Typography.Text>
             </Flex>
           ) : null}
           <Flex wrap gap={16}>
@@ -53,6 +61,7 @@ export const AirSensorCard = ({ sensor, now }: { sensor: AirSensor; now: number 
           <Typography.Text type={current ? 'secondary' : 'danger'}>
             {current ? t.air.lastMeasurement(format.dateTime(latest.at)) : t.air.noCurrentReadings(format.dateTime(latest.at))}
           </Typography.Text>
+          </Flex>
         </Flex>
       ) : null}
     </Card>

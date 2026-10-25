@@ -8,6 +8,7 @@ export const pl = {
     dashboard: 'Pulpit',
     parkings: 'Parkingi',
     air: 'Powietrze',
+    stats: 'Statystyki',
   },
   controls: {
     language: 'Język',
@@ -112,6 +113,20 @@ export const pl = {
     so2: 'Dwutlenek siarki (SO₂)',
     c6h6: 'Benzen (C₆H₆)',
     caqi: 'Indeks CAQI',
+  },
+  stats: {
+    title: 'Statystyki',
+    coverageTitle: 'Pokrycie danymi',
+    coverageHint: 'Odsetek godzin w wybranym zakresie, dla których są pomiary.',
+    parkingsHeading: 'Parkingi',
+    airHeading: 'Czujniki powietrza',
+    source: 'Źródło',
+    hours: 'Godziny z danymi',
+    share: 'Pokrycie',
+    cityTitle: 'Powietrze w mieście, dzień po dniu',
+    cityHint: 'Wartości ze wszystkich czujników razem.',
+    sensorCount: (count: number) => `Liczba czujników: ${count}`,
+    noAir: 'Brak pomiarów powietrza w wybranym zakresie.',
   },
   notFound: {
     title: 'Nie znaleziono strony',

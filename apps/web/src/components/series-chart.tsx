@@ -6,7 +6,7 @@ import { CartesianGrid, Legend, Line, LineChart, ReferenceLine, ResponsiveContai
 import { useI18n } from '@/i18n';
 import { useFormat } from '@/lib/format';
 
-export type SeriesPoint = { at: string; avg: number; min: number; max: number };
+export type SeriesPoint = { at: string; avg: number; min: number; max: number; sensors?: number };
 
 type Props = {
   title: string;
@@ -27,7 +27,8 @@ export const SeriesChart = ({ title, points, unit, digits, granularity, referenc
     return <Empty description={t.status.noDataInRange} />;
   }
 
-  const data = points.map((p) => ({ ts: new Date(p.at).getTime(), iso: p.at, avg: p.avg, min: p.min, max: p.max }));
+  const data = points.map((p) => ({ ts: new Date(p.at).getTime(), iso: p.at, avg: p.avg, min: p.min, max: p.max, sensors: p.sensors }));
+  const sensorsAt = (ts: number) => data.find((d) => d.ts === ts)?.sensors;
   const tick = (ts: number) => (granularity === 'hour' ? format.hour(new Date(ts).toISOString()) : format.day(new Date(ts).toISOString()));
   const label = (ts: number) => (granularity === 'hour' ? format.dateTime(new Date(ts).toISOString()) : format.date(new Date(ts).toISOString()));
   const value = (v: number) => (unit ? `${format.number(v, digits)} ${unit}` : format.number(v, digits));
@@ -54,7 +55,11 @@ export const SeriesChart = ({ title, points, unit, digits, granularity, referenc
             domain={zeroBased ? [0, 'auto'] : ['auto', 'auto']}
           />
           <Tooltip
-            labelFormatter={(ts) => label(Number(ts))}
+            labelFormatter={(ts) => {
+              const count = sensorsAt(Number(ts));
+
+              return count === undefined ? label(Number(ts)) : `${label(Number(ts))} | ${t.stats.sensorCount(count)}`;
+            }}
             formatter={(v) => value(Number(v))}
             contentStyle={{ background: token.colorBgElevated, border: `1px solid ${token.colorBorder}` }}
           />

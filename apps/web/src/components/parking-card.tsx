@@ -26,9 +26,14 @@ export const ParkingCard = ({ parking, now }: { parking: Parking; now: number })
       title={
         <Link href={{ pathname: '/parking', query: { id: parking.id } }}>{parking.name}</Link>
       }
-      extra={stale ? <StaleTag /> : null}
+      styles={{ title: { whiteSpace: 'normal' } }}
       style={{ height: '100%' }}
     >
+      {stale ? (
+        <Flex style={{ marginBottom: 8 }}>
+          <StaleTag />
+        </Flex>
+      ) : null}
       <Flex vertical gap={8} style={stale ? { opacity: 0.65 } : undefined}>
         <Typography.Text type="secondary">{parking.street}</Typography.Text>
         {latest ? (

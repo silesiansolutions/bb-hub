@@ -3,7 +3,7 @@
 import { useList, useOne, type BaseRecord } from '@refinedev/core';
 
 import { REFRESH_MS } from './config';
-import type { AirDaily, AirHourly, AirSensor, Parking, ParkingDaily, ParkingHourly } from './types';
+import type { AirDaily, AirHourly, AirSensor, CityAirDaily, Coverage, Parking, ParkingDaily, ParkingHourly } from './types';
 
 export type Rows<T> = { rows: T[]; loading: boolean; failed: boolean; refetch: () => void };
 export type Row<T> = { row: T | undefined; loading: boolean; failed: boolean; missing: boolean; refetch: () => void };
@@ -47,3 +47,16 @@ export const useAirSensors = () => useRows<AirSensor>('air');
 export const useAirSensor = (id: number) => useRow<AirSensor>('air', id);
 export const useAirHourly = (id: number, range: Range) => useRows<AirHourly>(`air/${id}/hourly`, range, Number.isInteger(id));
 export const useAirDaily = (id: number, range: Range) => useRows<AirDaily>(`air/${id}/daily`, range, Number.isInteger(id));
+
+export const useCoverage = (range: Range) => {
+  const { query: q, result } = useOne<Coverage>({
+    resource: 'stats',
+    id: 'coverage',
+    meta: { query: range },
+    queryOptions: { ...options },
+  });
+
+  return { row: result, loading: q.isLoading, failed: q.isError, refetch: () => void q.refetch() };
+};
+
+export const useCityAirDaily = (range: Range) => useRows<CityAirDaily>('stats/air/daily', range);

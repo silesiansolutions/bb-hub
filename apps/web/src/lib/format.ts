@@ -10,7 +10,7 @@ const make = (tag: string) => {
   const dateTime = new Intl.DateTimeFormat(tag, { dateStyle: 'medium', timeStyle: 'short', timeZone: TIME_ZONE });
   const date = new Intl.DateTimeFormat(tag, { dateStyle: 'medium', timeZone: TIME_ZONE });
   const hour = new Intl.DateTimeFormat(tag, { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', timeZone: TIME_ZONE });
-  const day = new Intl.DateTimeFormat(tag, { day: '2-digit', month: '2-digit', timeZone: TIME_ZONE });
+  const day = new Intl.DateTimeFormat(tag, { day: '2-digit', month: '2-digit', year: '2-digit', timeZone: TIME_ZONE });
   const numbers = new Map<number, Intl.NumberFormat>();
   const percent = new Intl.NumberFormat(tag, { style: 'percent', maximumFractionDigits: 0 });
 

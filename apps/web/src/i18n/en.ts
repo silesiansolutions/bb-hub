@@ -10,6 +10,7 @@ export const en: Messages = {
     dashboard: 'Dashboard',
     parkings: 'Car parks',
     air: 'Air',
+    stats: 'Statistics',
   },
   controls: {
     language: 'Language',
@@ -114,6 +115,20 @@ export const en: Messages = {
     so2: 'Sulphur dioxide (SO₂)',
     c6h6: 'Benzene (C₆H₆)',
     caqi: 'CAQI index',
+  },
+  stats: {
+    title: 'Statistics',
+    coverageTitle: 'Data coverage',
+    coverageHint: 'Share of hours in the selected range that have measurements.',
+    parkingsHeading: 'Car parks',
+    airHeading: 'Air sensors',
+    source: 'Source',
+    hours: 'Hours with data',
+    share: 'Coverage',
+    cityTitle: 'City air, day by day',
+    cityHint: 'Values from all sensors combined.',
+    sensorCount: (count: number) => `Sensors: ${count}`,
+    noAir: 'No air measurements in the selected range.',
   },
   notFound: {
     title: 'Page not found',

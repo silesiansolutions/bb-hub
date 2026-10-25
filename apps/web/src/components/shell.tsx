@@ -11,6 +11,7 @@ import { useThemeMode } from '@/lib/theme';
 const sectionOf = (pathname: string) => {
   if (pathname.startsWith('/parking')) return '/parkings';
   if (pathname.startsWith('/air')) return '/air';
+  if (pathname.startsWith('/stats')) return '/stats';
   return '/';
 };
 
@@ -24,6 +25,7 @@ export const Shell = ({ children }: { children: ReactNode }) => {
     { key: '/', label: <Link href="/">{t.nav.dashboard}</Link> },
     { key: '/parkings', label: <Link href="/parkings">{t.nav.parkings}</Link> },
     { key: '/air', label: <Link href="/air">{t.nav.air}</Link> },
+    { key: '/stats', label: <Link href="/stats">{t.nav.stats}</Link> },
   ];
 
   return (
