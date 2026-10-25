@@ -45,9 +45,9 @@ describe('parseSyngeos', () => {
   });
 
   it('counts a known sensor whose value is not a number', () => {
-    const odd = { ...device, sensors: [{ name: 'pm10', data: [{ read_at: '2026-10-25T17:52:13+01:00', value: 'n/a' }] }, { name: 'pm25', data: [{ value: null }] }] };
+    const odd = { ...device, sensors: [{ name: 'pm10', data: [{ read_at: '2026-10-25T17:52:13+01:00', value: 'n/a' }] }, { name: 'pm25', data: [{ value: null }] }, { name: 'pm1', data: [{ read_at: '2026-10-25T17:52:13+01:00', value: ' ' }] }, { data: [{ value: 3 }] }] };
 
-    expect(parseSyngeos(odd)).toMatchObject({ values: [], unknownSensors: [], nonNumeric: 1 });
+    expect(parseSyngeos(odd)).toMatchObject({ values: [], unknownSensors: [], nonNumeric: 2 });
   });
 
   it('tells a relocated device from a Bielsko-Biała one', () => {

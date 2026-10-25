@@ -67,12 +67,15 @@ export const parseSyngeos = (body: unknown): SyngeosReading | undefined => {
     const metric = sensor.name ? SENSOR_TO_METRIC[sensor.name.toLowerCase()] : undefined;
 
     if (!metric) {
-      unknownSensors.push(sensor.name ?? '');
+      if (sensor.name) {
+        unknownSensors.push(sensor.name);
+      }
+
       continue;
     }
 
     const latest = sensor.data?.[0];
-    const value = typeof latest?.value === 'string' ? Number(latest.value) : latest?.value;
+    const value = typeof latest?.value === 'string' ? (latest.value.trim() === '' ? Number.NaN : Number(latest.value)) : latest?.value;
 
     if (typeof value !== 'number' || !Number.isFinite(value)) {
       if (latest?.value !== undefined && latest.value !== null) {

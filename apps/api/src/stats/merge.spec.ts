@@ -35,5 +35,6 @@ describe('city-wide air statistics', () => {
 
     expect(share(20, new Date('2026-10-24T23:00:00Z'), new Date('2026-10-25T23:00:00Z'), now)).toBe(100);
     expect(share(19, new Date('2026-10-24T23:00:00Z'), new Date('2026-10-25T23:00:00Z'), new Date('2026-10-27T00:00:00Z'))).toBe(79.2);
+    expect(share(25, new Date('2026-10-24T22:00:00Z'), new Date('2026-10-25T22:00:00Z'), new Date('2026-10-27T00:00:00Z'))).toBe(100);
   });
 });
