@@ -5,7 +5,7 @@
 
 Free spaces in the car parks of Miejski Zarząd Dróg and air quality in Bielsko-Biała, for residents who want the current state and the history in one place. A monorepo with an API in NestJS that serves hourly aggregates from MongoDB and a static Polish and English site in Next.js.
 
-- [Live site](https://bb.silesiansolutions.com)
+- [Site](https://bb.silesiansolutions.com)
 - [Data repository](https://github.com/silesiansolutions/bb-data) (private)
 
 ## Architecture
@@ -25,7 +25,7 @@ MongoDB keeps hourly aggregates, not raw readings; the raw history lives outside
 
 A reading is counted once. An upsert matches only when the reading is newer than the last one counted for that hour (per metric for air); a repeated reading ends in a duplicate key error that is ignored. Re-running an import over the same files is therefore safe, but readings are expected in time order: a reading older than the last one counted for its hour is skipped, so a later run with an extra tree adds only readings newer than what each hour already holds. Air readings from devices that report a town other than Bielsko-Biała are skipped, and a sample without `read_at`, or with `read_at` more than 5 minutes after the fetch, is skipped too; the import logs every counter.
 
-Measured on 2026-10-25 over the full history from 2024-02-25: 171 MB of data and indexes (474k documents; 60 MB on disk after compression, indexes included) against the 512 MB of a MongoDB Atlas free cluster. Each source adds at most one hourly document per hour, 8,760 in a common year. At the averages measured with `$collStats` on that date (86 B per parking document, 382 B per air document, about 15 B of index per document), that is about 0.9 MB a year per car park and 3.5 MB a year per reporting air sensor.
+Measured on 2026-10-25 over the full history (car park readings from 2024-01-07 to 2026-10-25; air files from 2024-01-24 to 2026-10-25, with the last Bielsko-Biała measurement on 2026-02-12): 171 MB of data and indexes (474k documents; 60 MB on disk after compression, indexes included) against the 512 MB of a MongoDB Atlas free cluster. Each source adds at most one hourly document per hour, 8,760 in a common year. At the averages measured with `$collStats` on that date (86 B per parking document, 382 B per air document, about 15 B of index per document), that is about 0.9 MB a year per car park and 3.5 MB a year per reporting air sensor.
 
 All API routes sit under `/api`; interactive documentation at `/api/docs`. Daily views are computed in the `Europe/Warsaw` time zone. A range is rounded out to whole hours or whole Warsaw days, so the first and last points cover a full period; the current hour and day are naturally partial.
 

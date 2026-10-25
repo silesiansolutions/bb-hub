@@ -26,6 +26,7 @@ export const en: Messages = {
     noData: 'No data',
     noDataInRange: 'No data in the selected range.',
     back: 'Back to the list',
+    noscript: 'The data on these pages is loaded with JavaScript. Turn it on in your browser to see the car parks and air measurements.',
   },
   stale: {
     badge: 'Outdated',
@@ -130,6 +131,15 @@ export const en: Messages = {
     cityHint: 'Values from all sensors combined.',
     sensorCount: (count: number) => `Sensors: ${count}`,
     noAir: 'No air measurements in the selected range.',
+  },
+  meta: {
+    dashboard: { title: 'Dashboard', description: 'Free spaces in city car parks and current air quality in Bielsko-Biała in one place.' },
+    parkings: { title: 'Car parks', description: 'Free spaces in city car parks in Bielsko-Biała and the time of the last reading.' },
+    parking: { title: 'Car park', description: 'Current occupancy of the car park and charts of free spaces by hour and by day.' },
+    air: { title: 'Air quality', description: 'Readings from air quality sensors in Bielsko-Biała, with an archive.' },
+    airSensor: { title: 'Air sensor', description: 'Latest readings of the air quality sensor and hourly and daily charts.' },
+    stats: { title: 'Statistics', description: 'Data coverage and daily city-wide averages.' },
+    notFound: { title: 'Page not found', description: 'That page does not exist or has moved.' },
   },
   notFound: {
     title: 'Page not found',

@@ -24,6 +24,7 @@ export const pl = {
     noData: 'Brak danych',
     noDataInRange: 'Brak danych w wybranym zakresie.',
     back: 'Wróć do listy',
+    noscript: 'Dane na tych stronach wczytuje JavaScript. Włącz go w przeglądarce, żeby zobaczyć parkingi i pomiary powietrza.',
   },
   stale: {
     badge: 'Nieaktualne',
@@ -128,6 +129,15 @@ export const pl = {
     cityHint: 'Wartości ze wszystkich czujników razem.',
     sensorCount: (count: number) => `Liczba czujników: ${count}`,
     noAir: 'Brak pomiarów powietrza w wybranym zakresie.',
+  },
+  meta: {
+    dashboard: { title: 'Pulpit', description: 'Wolne miejsca na parkingach miejskich i aktualna jakość powietrza w Bielsku-Białej w jednym miejscu.' },
+    parkings: { title: 'Parkingi', description: 'Liczba wolnych miejsc na parkingach miejskich w Bielsku-Białej i czas ostatniego odczytu.' },
+    parking: { title: 'Parking', description: 'Aktualne obłożenie parkingu oraz wykresy wolnych miejsc w ujęciu godzinowym i dziennym.' },
+    air: { title: 'Jakość powietrza', description: 'Pomiary z czujników jakości powietrza w Bielsku-Białej wraz z archiwum.' },
+    airSensor: { title: 'Czujnik powietrza', description: 'Ostatnie odczyty czujnika jakości powietrza oraz wykresy godzinowe i dzienne.' },
+    stats: { title: 'Statystyki', description: 'Pokrycie danymi i średnie dzienne dla całego miasta.' },
+    notFound: { title: 'Nie znaleziono strony', description: 'Takiej strony nie ma albo została przeniesiona.' },
   },
   notFound: {
     title: 'Nie znaleziono strony',
