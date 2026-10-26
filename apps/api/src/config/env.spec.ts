@@ -42,5 +42,9 @@ describe('validateEnv', () => {
     expect(() => validateEnv({ ...base, NODE_ENV: 'production', ORIGIN_SECRET: 's', COLLECTOR_ENABLED: 'false' })).not.toThrow();
     expect(() => validateEnv({ ...base, COLLECTOR_ENABLED: 'true', BUFFER_DIR: '/b', BB_DATA_SSH_KEY: '/nonexistent/deploy-key' })).toThrow('BB_DATA_SSH_KEY does not name a readable file');
     expect(() => validateEnv({ ...base, COLLECTOR_ENABLED: 'true', BUFFER_DIR: '/b', BB_DATA_SSH_KEY: __filename })).not.toThrow();
+    expect(() => validateEnv({ ...base, COLLECTOR_ENABLED: 'true', BUFFER_DIR: '/b', BB_DATA_SSH_KEY: __dirname })).toThrow('BB_DATA_SSH_KEY does not name a readable file');
+    expect(() => validateEnv({ ...base, COLLECTOR_ENABLED: 'true', BUFFER_DIR: '/var/lib/bb/buffer', BB_DATA_DIR: '/var/lib/bb' })).toThrow('must not contain each other');
+    expect(() => validateEnv({ ...base, COLLECTOR_ENABLED: 'true', BUFFER_DIR: '/var/lib/bb', BB_DATA_DIR: '/var/lib/bb/bb-data' })).toThrow('must not contain each other');
+    expect(() => validateEnv({ ...base, COLLECTOR_ENABLED: 'true', BUFFER_DIR: '/var/lib/bb/buffer', BB_DATA_DIR: '/var/lib/bb/bb-data' })).not.toThrow();
   });
 });

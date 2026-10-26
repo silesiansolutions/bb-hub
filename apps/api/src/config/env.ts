@@ -1,4 +1,5 @@
-import { existsSync } from 'node:fs';
+import { accessSync, constants, statSync } from 'node:fs';
+import { relative } from 'node:path';
 
 import { plainToInstance, Type } from 'class-transformer';
 import { IsIn, IsInt, IsOptional, IsString, Max, Min, validateSync } from 'class-validator';
@@ -80,6 +81,22 @@ export class Env {
 export const R2_KEYS = ['R2_ENDPOINT', 'R2_BUCKET', 'R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY'] as const;
 export const BB_DATA_KEYS = ['BB_DATA_REPO', 'BB_DATA_DIR', 'BB_DATA_GIT_NAME', 'BB_DATA_GIT_EMAIL'] as const;
 
+const readableFile = (path: string): boolean => {
+  try {
+    accessSync(path, constants.R_OK);
+
+    return statSync(path).isFile();
+  } catch {
+    return false;
+  }
+};
+
+const inside = (path: string, dir: string): boolean => {
+  const rel = relative(dir, path);
+
+  return rel === '' || (!rel.startsWith('..') && !rel.startsWith('/'));
+};
+
 export const validateEnv = (raw: Record<string, unknown>): Env => {
   const present = Object.fromEntries(Object.entries(raw).filter(([, value]) => value !== ''));
   const env = plainToInstance(Env, present, { enableImplicitConversion: true });
@@ -105,8 +122,12 @@ export const validateEnv = (raw: Record<string, unknown>): Env => {
       throw new Error(`COLLECTOR_ENABLED=true needs ${missing.join(', ')}`);
     }
 
-    if (env.BB_DATA_SSH_KEY && !existsSync(env.BB_DATA_SSH_KEY)) {
+    if (env.BB_DATA_SSH_KEY && !readableFile(env.BB_DATA_SSH_KEY)) {
       throw new Error('BB_DATA_SSH_KEY does not name a readable file');
+    }
+
+    if (env.BB_DATA_DIR && env.BUFFER_DIR && (inside(env.BUFFER_DIR, env.BB_DATA_DIR) || inside(env.BB_DATA_DIR, env.BUFFER_DIR))) {
+      throw new Error('BB_DATA_DIR and BUFFER_DIR must not contain each other');
     }
   }
 

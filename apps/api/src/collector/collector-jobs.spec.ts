@@ -97,6 +97,20 @@ describe('collector jobs', () => {
     expect(calls.slice(4)).toEqual(calls.slice(0, 4));
   });
 
+  it('keeps the exported day through an empty run on the real state service', async () => {
+    const docs = new Map<string, Record<string, unknown>>([['export', { _id: 'export', lastSuccess: new Date(), detail: { through: '2026-10-24' } }]]);
+    const collection = {
+      findOne: async ({ _id }: { _id: string }) => docs.get(_id) ?? null,
+      updateOne: async ({ _id }: { _id: string }, { $set }: { $set: Record<string, unknown> }) => void docs.set(_id, { ...docs.get(_id), _id, ...$set }),
+    };
+    const state = new CollectorStateService({ collection: () => collection } as never);
+    const fakes = new Fakes();
+    const jobs = new CollectorJobsService({ get: (key: string) => ({ BUFFER_DIR: join(root, 'buffer') })[key] } as unknown as ConfigService, fakes.aggregates, state);
+
+    await jobs.run('export', new Date('2026-10-25T23:00:00Z'));
+    expect(await state.exportedThrough()).toBe('2026-10-24');
+  });
+
   it('reads the exported day only when it is a day', async () => {
     let stored: unknown;
     const state = new CollectorStateService({ collection: () => ({ findOne: async () => stored }) } as never);

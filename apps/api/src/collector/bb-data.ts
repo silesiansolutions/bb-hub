@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { chmod, copyFile, mkdir, rm, writeFile } from 'node:fs/promises';
+import { chmod, copyFile, mkdir, readdir, rm, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { promisify } from 'node:util';
 
@@ -69,8 +69,7 @@ export class BbDataRepo {
   }
 
   private async ensureClone(env: NodeJS.ProcessEnv): Promise<void> {
-    await rm(join(this.config.dir, '.git/index.lock'), { force: true });
-    await rm(join(this.config.dir, '.git/shallow.lock'), { force: true });
+    await this.removeLocks();
 
     try {
       await this.git(env, 'rev-parse', '--verify', '-q', 'HEAD');
@@ -81,6 +80,20 @@ export class BbDataRepo {
     }
 
     await this.git(env, 'checkout', '-q', '-B', BRANCH);
+  }
+
+  private async removeLocks(): Promise<void> {
+    let names: string[];
+
+    try {
+      names = await readdir(join(this.config.dir, '.git'), { recursive: true });
+    } catch {
+      return;
+    }
+
+    for (const name of names.filter((n) => n.endsWith('.lock') && !n.startsWith('objects'))) {
+      await rm(join(this.config.dir, '.git', name), { force: true });
+    }
   }
 
   private async nothingStaged(env: NodeJS.ProcessEnv): Promise<boolean> {

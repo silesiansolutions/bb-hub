@@ -163,6 +163,7 @@ describe('day export', () => {
 
     await repo.publish([{ path: 'data/parking/1/2026-10-25.json', text: '[]' }], 'chore(data): 2026-10-25');
     writeFileSync(join(dir, '.git/index.lock'), '');
+    writeFileSync(join(dir, '.git/refs/heads/master.lock'), '');
     await expect(repo.publish([{ path: 'data/parking/1/2026-10-26.json', text: '[]' }], 'chore(data): 2026-10-26')).resolves.toBe('pushed');
 
     rmSync(join(dir, '.git/HEAD'));
@@ -174,5 +175,22 @@ describe('day export', () => {
     }
 
     expect(git(origin, 'rev-list', '--count', 'master')).toBe('4\n');
+  });
+
+  it('never mistakes a parent repository for the clone', async () => {
+    const origin = seedOrigin(root);
+    const parent = join(root, 'parent');
+
+    mkdirSync(join(parent, 'var/bb-data'), { recursive: true });
+    writeFileSync(join(parent, 'var/bb-data/leftover'), 'x');
+    git(parent, 'init', '-q', '-b', 'main');
+    git(parent, 'commit', '-q', '--allow-empty', '-m', 'parent');
+
+    const head = git(parent, 'rev-parse', 'HEAD');
+    const repo = new BbDataRepo({ repo: `file://${origin}`, dir: join(parent, 'var/bb-data'), name: 'bb-hub', email: 'bb-hub@example.invalid' });
+
+    await expect(repo.publish([{ path: 'data/parking/1/2026-10-25.json', text: '[]' }], 'chore(data): 2026-10-25')).resolves.toBe('pushed');
+    expect(git(parent, 'rev-parse', 'HEAD')).toBe(head);
+    expect(git(origin, 'log', '-1', '--format=%s')).toBe('chore(data): 2026-10-25\n');
   });
 });

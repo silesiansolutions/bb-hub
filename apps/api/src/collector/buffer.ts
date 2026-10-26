@@ -68,7 +68,13 @@ export class DayBuffer {
     const prefix = !this.checked.has(path) && (await endsTorn(path)) ? '\n' : '';
 
     this.checked.add(path);
-    await appendFile(path, `${prefix}${JSON.stringify(line)}\n`, 'utf8');
+
+    try {
+      await appendFile(path, `${prefix}${JSON.stringify(line)}\n`, 'utf8');
+    } catch (error) {
+      this.checked.delete(path);
+      throw error;
+    }
   }
 
   async has(day: string, type: DataType, id: string): Promise<boolean> {
