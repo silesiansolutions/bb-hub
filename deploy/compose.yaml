@@ -1,0 +1,40 @@
+name: bb-hub
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: 10m
+    max-file: "3"
+
+services:
+  api:
+    image: ghcr.io/silesiansolutions/bb-hub-api:${API_TAG:?API_TAG is required}
+    restart: always
+    env_file: [api.env]
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      REDIS_URL: redis://redis:6379
+      COLLECTOR_ENABLED: "true"
+      BUFFER_DIR: /var/lib/bb/buffer
+      BB_DATA_DIR: /var/lib/bb/bb-data
+      BB_DATA_SSH_KEY: /run/secrets/bb-data-key
+    ports:
+      - ${API_PORT:?API_PORT is required}:3001
+    volumes:
+      - ./data:/var/lib/bb
+      - ./bb-data-key:/run/secrets/bb-data-key:ro
+    mem_limit: 256m
+    memswap_limit: 256m
+    stop_grace_period: 60s
+    logging: *logging
+    depends_on:
+      - redis
+
+  redis:
+    image: redis:8.10.2-alpine
+    restart: always
+    command: ["redis-server", "--maxmemory", "32mb", "--maxmemory-policy", "noeviction", "--save", "", "--appendonly", "no"]
+    mem_limit: 64m
+    memswap_limit: 64m
+    logging: *logging

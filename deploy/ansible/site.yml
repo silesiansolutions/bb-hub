@@ -1,0 +1,129 @@
+- name: bb-hub API and Redis on the Mikrus server
+  hosts: all
+  gather_facts: false
+  vars:
+    ansible_python_interpreter: /usr/bin/python3
+    app_dir: /root/MCPAPPS/bb-hub
+    app_uid: 1000
+    api_tag: "{{ lookup('ansible.builtin.env', 'API_TAG', default=undef()) }}"
+    api_port: "{{ lookup('ansible.builtin.env', 'API_PORT', default=undef()) }}"
+    mongodb_uri: "{{ lookup('ansible.builtin.env', 'MONGODB_URI', default=undef()) }}"
+    origin_secret: "{{ lookup('ansible.builtin.env', 'ORIGIN_SECRET', default=undef()) }}"
+    r2_endpoint: "{{ lookup('ansible.builtin.env', 'R2_ENDPOINT', default=undef()) }}"
+    r2_bucket: "{{ lookup('ansible.builtin.env', 'R2_BUCKET', default=undef()) }}"
+    r2_access_key_id: "{{ lookup('ansible.builtin.env', 'R2_ACCESS_KEY_ID', default=undef()) }}"
+    r2_secret_access_key: "{{ lookup('ansible.builtin.env', 'R2_SECRET_ACCESS_KEY', default=undef()) }}"
+    bb_data_repo: git@github.com:silesiansolutions/bb-data.git
+    bb_data_git_name: rylkobot
+    bb_data_git_email: 204860200+rylkobot@users.noreply.github.com
+    bb_data_deploy_key: "{{ lookup('ansible.builtin.env', 'BB_DATA_DEPLOY_KEY', default=undef()) }}"
+
+  tasks:
+    - name: Docker engine and the compose plugin are installed
+      ansible.builtin.apt:
+        name: [docker.io, docker-compose-v2]
+        state: present
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Docker starts with the system
+      ansible.builtin.service:
+        name: docker
+        state: started
+        enabled: true
+      ignore_errors: "{{ ansible_check_mode }}"
+
+    - name: Docker can run a container in this container host
+      ansible.builtin.command: docker run --rm --pull missing hello-world
+      changed_when: false
+      when: not ansible_check_mode
+
+    - name: Application directory is private to root
+      ansible.builtin.file:
+        path: "{{ app_dir }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0700"
+
+    - name: Data volume belongs to the image user
+      ansible.builtin.file:
+        path: "{{ app_dir }}/data"
+        state: directory
+        owner: "{{ app_uid }}"
+        group: "{{ app_uid }}"
+        mode: "0750"
+
+    - name: Compose file
+      ansible.builtin.copy:
+        src: ../compose.yaml
+        dest: "{{ app_dir }}/compose.yaml"
+        owner: root
+        group: root
+        mode: "0644"
+
+    - name: Image tag and port
+      ansible.builtin.template:
+        src: compose.env.j2
+        dest: "{{ app_dir }}/.env"
+        owner: root
+        group: root
+        mode: "0600"
+
+    - name: API settings with secrets
+      ansible.builtin.template:
+        src: api.env.j2
+        dest: "{{ app_dir }}/api.env"
+        owner: root
+        group: root
+        mode: "0600"
+      no_log: true
+      diff: false
+
+    - name: bb-data deploy key, readable only by the image user
+      ansible.builtin.copy:
+        content: "{{ bb_data_deploy_key | trim }}\n"
+        dest: "{{ app_dir }}/bb-data-key"
+        owner: "{{ app_uid }}"
+        group: "{{ app_uid }}"
+        mode: "0400"
+      no_log: true
+      diff: false
+
+    - name: Stack runs the requested image
+      community.docker.docker_compose_v2:
+        project_src: "{{ app_dir }}"
+        pull: always
+        state: present
+        remove_orphans: true
+        wait: true
+        wait_timeout: 120
+      when: not ansible_check_mode
+
+    - name: API answers its health check on the published port
+      ansible.builtin.uri:
+        url: "http://127.0.0.1:{{ api_port }}/api/health"
+        status_code: 200
+      register: health
+      until: health.status == 200
+      retries: 12
+      delay: 5
+      when: not ansible_check_mode
+
+    - name: Server logbook names the application
+      ansible.builtin.blockinfile:
+        path: /root/MCP_documentation.md
+        create: true
+        mode: "0600"
+        marker: "<!-- {mark} bb-hub -->"
+        block: |
+          ## bb-hub (managed by Ansible from silesiansolutions/bb-hub, deploy/ansible/site.yml)
+
+          - What it is: API and collector for parking and air data in Bielsko-Biała, behind a Cloudflare Worker.
+          - Containers: docker compose project `bb-hub` (api, redis), restart always.
+          - Locations: {{ app_dir }}/compose.yaml, .env (image tag, port), api.env (secrets), bb-data-key, data/ (raw buffer and bb-data clone).
+          - Port: {{ api_port }} on all addresses, plain HTTP; the platform terminates TLS.
+          - Start or update: cd {{ app_dir }} && docker compose up -d
+          - Stop: cd {{ app_dir }} && docker compose down
+          - Health check: curl -s http://127.0.0.1:{{ api_port }}/api/health
+          - Do not edit by hand: the next deploy overwrites these files.

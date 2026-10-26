@@ -14,6 +14,8 @@ Free spaces in the car parks of Miejski Zarząd Dróg and air quality in Bielsko
 | --- | --- |
 | `apps/api` | NestJS 12 API on Node 24: read-only endpoints over hourly aggregates in MongoDB, and the collector that feeds them |
 | `apps/web` | Next.js 16 static export: dashboard, car parks, air sensors, statistics |
+| `apps/edge` | Cloudflare Worker: static assets of the site, `/api` forwarded to the origin |
+| `deploy` | production compose file and the Ansible playbook for the server |
 | `compose.yaml` | API and Redis with hard memory limits; `--profile local-db` adds a local MongoDB |
 | `.github/workflows/ci.yml` | lint, typecheck, unit and e2e tests against MongoDB and Redis, builds |
 
@@ -69,11 +71,11 @@ All API routes sit under `/api`; interactive documentation at `/api/docs`. Daily
 | `BB_DATA_GIT_NAME`, `BB_DATA_GIT_EMAIL` | author of the daily data commits; `compose.yaml` defaults to the `rylkobot` account |
 | `NEXT_PUBLIC_API_URL` | site only, at build time: API base, `/api` by default |
 
-With `ORIGIN_SECRET` set, every API route except `/api/health` and the documentation (`/api/docs`, `/api/docs-json`) requires the header, so only the edge proxy reaches the data. The rate limit is 120 requests a minute per client, keyed on `CF-Connecting-IP`, falling back to the socket address; `X-Forwarded-For` is ignored. Statistics routes allow 10 requests a minute per client, compute one uncached result at a time with at most four waiting (beyond that they answer 503), and keep up to 24 results in memory for an hour. Successful responses carry `Cache-Control: public` (5 minutes, statistics 1 hour); errors are never cached.
+With `ORIGIN_SECRET` set, every API route except `/api/health` and the documentation (`/api/docs`, `/api/docs-json`) requires the header, so only the edge proxy reaches the data. The rate limit is 120 requests a minute per client, keyed on `X-Client-IP` when the request carries the right origin secret (the Worker sets it), otherwise on `CF-Connecting-IP`, falling back to the socket address; `X-Forwarded-For` is ignored. Statistics routes allow 10 requests a minute per client, compute one uncached result at a time with at most four waiting (beyond that they answer 503), and keep up to 24 results in memory for an hour. Successful responses carry `Cache-Control: public` (5 minutes, statistics 1 hour); errors are never cached.
 
 ## Deployment
 
-The API runs as the container built from `apps/api/Dockerfile`, next to Redis, with the memory limits from `compose.yaml`, behind Cloudflare. The site is the static export in `apps/web/out`, served from Cloudflare at bb.silesiansolutions.com, which forwards `/api` to the API. Deployment as code and its runbook arrive with the deployment change.
+The API runs from the image `ghcr.io/silesiansolutions/bb-hub-api` with Redis, under `deploy/compose.yaml` on a small VPS, set up by the Ansible playbook in `deploy/ansible`. The site is the static export in `apps/web/out`, served by the Cloudflare Worker in `apps/edge` at bb.silesiansolutions.com. The Worker forwards `/api` to the origin with the origin secret and the client address, and caches public responses at the edge. `.github/workflows/deploy.yml` dry-runs both on pull requests and applies them on demand; [docs/deployment.md](docs/deployment.md) lists the one-time manual steps and the secrets.
 
 ## Data sources
 

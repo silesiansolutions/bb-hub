@@ -5,8 +5,10 @@ allowBuilds:
   '@parcel/watcher': false
   '@scarf/scarf': false
   '@swc/core': true
+  esbuild: true
   msgpackr-extract: true
   unrs-resolver: true
+  workerd: true
 
 overrides:
   '@nestjs/platform-express>multer': ^2.5.0

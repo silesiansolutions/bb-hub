@@ -217,6 +217,17 @@ describe('api (e2e)', () => {
     await hit('203.0.113.8').expect(200);
   });
 
+  it('throttles per client address the edge proxy forwards with the origin secret', async () => {
+    const hit = (ip: string) => request(app.getHttpServer()).get('/api/parkings').set('x-origin-secret', SECRET).set('cf-connecting-ip', '198.18.0.1').set('x-client-ip', ip);
+
+    for (let i = 0; i < 120; i++) {
+      await hit('203.0.113.17').expect(200);
+    }
+
+    await hit('203.0.113.17').expect(429);
+    await hit('203.0.113.18').expect(200);
+  });
+
   it('does not let a forwarded-for header pick the throttle key', async () => {
     let throttled = 0;
 

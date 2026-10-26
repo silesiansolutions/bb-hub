@@ -5,12 +5,28 @@ import { ConfigService } from '@nestjs/config';
 import { Request } from 'express';
 
 export const ORIGIN_HEADER = 'x-origin-secret';
+export const CLIENT_IP_HEADER = 'x-client-ip';
 
-const sameSecret = (given: string, expected: string): boolean => {
+export const sameSecret = (given: string, expected: string): boolean => {
   const a = Buffer.from(given);
   const b = Buffer.from(expected);
 
   return a.length === b.length && timingSafeEqual(a, b);
+};
+
+type Headers = Record<string, string | string[] | undefined>;
+
+const single = (value: string | string[] | undefined): string | undefined => (Array.isArray(value) ? undefined : value || undefined);
+
+export const clientKey = (headers: Headers, socketAddress: string | undefined, secret: string | undefined): string => {
+  const given = single(headers[ORIGIN_HEADER]);
+  const forwarded = single(headers[CLIENT_IP_HEADER]);
+
+  if (secret && given && forwarded && sameSecret(given, secret)) {
+    return forwarded;
+  }
+
+  return single(headers['cf-connecting-ip']) ?? socketAddress ?? 'unknown';
 };
 
 @Injectable()
