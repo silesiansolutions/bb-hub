@@ -3,6 +3,8 @@ import { InjectConnection } from '@nestjs/mongoose';
 import { AnyBulkWriteOperation, Collection, MongoBulkWriteError, MongoServerError } from 'mongodb';
 import { Connection } from 'mongoose';
 
+import { AirId, AirSource } from '../catalog/catalog';
+
 import { AIR_METRICS, AirHourly, AirMetric, AirSample, airUpsert, ParkingHourly, ParkingReading, parkingUpsert, Stat } from './hourly';
 
 const DUPLICATE_KEY = 11000;
@@ -18,6 +20,15 @@ export interface LatestParking {
 export interface LatestAir {
   _id: string;
   m: Partial<Record<AirMetric, { v: number; t: Date }>>;
+}
+
+interface DiscoveredAir {
+  _id: AirId;
+  device: number;
+  name: string;
+  inCity: boolean;
+  seenAt: Date;
+  firstSeenAt: Date;
 }
 
 export interface DailyRow<T> {
@@ -37,6 +48,10 @@ export class AggregatesService {
 
   private get air(): Collection<AirHourly> {
     return this.connection.collection<AirHourly>('air_hourly') as unknown as Collection<AirHourly>;
+  }
+
+  private get devices(): Collection<DiscoveredAir> {
+    return this.connection.collection<DiscoveredAir>('air_devices') as unknown as Collection<DiscoveredAir>;
   }
 
   private latest<T extends { _id: string }>(): Collection<T> {
@@ -99,7 +114,7 @@ export class AggregatesService {
     return this.latest<LatestParking>().findOne({ _id: `parking:${id}` });
   }
 
-  async latestAir(id: number): Promise<LatestAir | null> {
+  async latestAir(id: AirId): Promise<LatestAir | null> {
     return this.latest<LatestAir>().findOne({ _id: `air:${id}` });
   }
 
@@ -110,7 +125,7 @@ export class AggregatesService {
       .toArray();
   }
 
-  async airHourly(id: number, from: Date, to: Date): Promise<AirHourly[]> {
+  async airHourly(id: AirId, from: Date, to: Date): Promise<AirHourly[]> {
     return this.air
       .find({ _id: { $gte: { s: id, h: from }, $lt: { s: id, h: to } } })
       .sort({ _id: 1 })
@@ -138,7 +153,7 @@ export class AggregatesService {
     return rows.map(({ _id, ...value }) => ({ day: _id, value }));
   }
 
-  async airDaily(id: number, from: Date, to: Date): Promise<DailyRow<Partial<Record<AirMetric, Stat>>>[]> {
+  async airDaily(id: AirId, from: Date, to: Date): Promise<DailyRow<Partial<Record<AirMetric, Stat>>>[]> {
     const group: Record<string, unknown> = {
       _id: { $dateTrunc: { date: '$_id.h', unit: 'day', timezone: TIMEZONE } },
     };
@@ -175,8 +190,32 @@ export class AggregatesService {
     return this.parking.countDocuments({ _id: { $gte: { p: id, h: from }, $lt: { p: id, h: to } } });
   }
 
-  async airHours(id: number, from: Date, to: Date): Promise<number> {
+  async airHours(id: AirId, from: Date, to: Date): Promise<number> {
     return this.air.countDocuments({ _id: { $gte: { s: id, h: from }, $lt: { s: id, h: to } } });
+  }
+
+  async discoveredAir(): Promise<AirSource[]> {
+    const rows = await this.devices.find({}, { sort: { device: 1 } }).toArray();
+
+    return rows.map((r) => ({ id: r._id, provider: 'syngeos', device: r.device, name: r.name }));
+  }
+
+  async pollableAir(): Promise<AirSource[]> {
+    const rows = await this.devices.find({ inCity: true }, { sort: { device: 1 } }).toArray();
+
+    return rows.map((r) => ({ id: r._id, provider: 'syngeos', device: r.device, name: r.name }));
+  }
+
+  async saveDiscovery(found: AirSource[], at: Date): Promise<void> {
+    for (const device of found) {
+      await this.devices.updateOne(
+        { _id: device.id },
+        { $set: { device: device.device, name: device.name, inCity: true, seenAt: at }, $setOnInsert: { firstSeenAt: at } },
+        { upsert: true },
+      );
+    }
+
+    await this.devices.updateMany({ _id: { $nin: found.map((d) => d.id) }, inCity: true }, { $set: { inCity: false } });
   }
 
   async ping(): Promise<void> {

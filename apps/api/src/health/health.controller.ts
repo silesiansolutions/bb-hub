@@ -5,6 +5,7 @@ import { HealthCheck, HealthCheckService, HealthIndicatorService } from '@nestjs
 import { Redis } from 'ioredis';
 
 import { AggregatesService } from '../aggregates/aggregates.service';
+import { CollectorStateService } from '../collector/collector-state.service';
 
 @Injectable()
 export class RedisProbe implements OnModuleDestroy {
@@ -35,6 +36,7 @@ export class HealthController {
     private readonly indicators: HealthIndicatorService,
     private readonly aggregates: AggregatesService,
     private readonly redis: RedisProbe,
+    private readonly collector: CollectorStateService,
   ) {}
 
   @Get()
@@ -43,7 +45,18 @@ export class HealthController {
     return this.health.check([
       () => this.probe('mongo', () => this.aggregates.ping()),
       () => this.probe('redis', () => this.redis.ping()),
+      () => this.sources(),
     ]);
+  }
+
+  private async sources() {
+    const indicator = this.indicators.check('collector');
+
+    try {
+      return indicator.up({ sources: await this.collector.view() });
+    } catch {
+      return indicator.down();
+    }
   }
 
   private async probe(key: string, run: () => Promise<unknown>) {

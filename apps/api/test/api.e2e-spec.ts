@@ -42,7 +42,11 @@ describe('api (e2e)', () => {
   it('reports mongo and redis up without the origin secret', async () => {
     const res = await request(app.getHttpServer()).get('/api/health').expect(200);
 
-    expect(res.body.info).toEqual({ mongo: { status: 'up' }, redis: { status: 'up' } });
+    expect(res.body.info.mongo).toEqual({ status: 'up' });
+    expect(res.body.info.redis).toEqual({ status: 'up' });
+    expect(res.body.info.collector.status).toBe('up');
+    expect(Object.keys(res.body.info.collector.sources)).toEqual(['parking', 'air', 'discovery', 'export']);
+    expect(res.body.info.collector.sources.parking).toEqual({ lastSuccess: null, lastFailure: null, detail: null });
   });
 
   it('rejects requests without the right origin secret', async () => {
@@ -117,6 +121,35 @@ describe('api (e2e)', () => {
         temperature: { value: 15, at: '2026-09-01T10:00:00.000Z' },
       },
     });
+  });
+
+  it('serves discovered sensors under d<device> ids next to the legacy catalog', async () => {
+    await aggregates.saveDiscovery(
+      [
+        { id: 'd10587', provider: 'syngeos', device: 10587, name: 'Wapienicka 1' },
+        { id: 3, provider: 'syngeos', device: 1329, name: 'Bohaterów Warszawy 20' },
+      ],
+      new Date('2026-10-26T00:10:00Z'),
+    );
+    await aggregates.recordAir([{ deviceId: 'd10587', metric: 'pm10', at: new Date('2026-10-26T08:00:00Z'), value: 21 }]);
+
+    const list = await get('/api/air').expect(200);
+
+    expect(list.body).toHaveLength(53);
+    expect(list.body[52]).toMatchObject({ id: 'd10587', device: 10587, name: 'Wapienicka 1', latest: { at: '2026-10-26T08:00:00.000Z' } });
+
+    const hourly = await get('/api/air/d10587/hourly?from=2026-10-26T00:00:00Z&to=2026-10-27T00:00:00Z').expect(200);
+
+    expect(hourly.body).toEqual([{ hour: '2026-10-26T08:00:00.000Z', metrics: { pm10: { avg: 21, min: 21, max: 21, samples: 1 } } }]);
+    await get('/api/air/3').expect(200);
+    await get('/api/air/d10588').expect(404);
+    await get('/api/air/d0').expect(404);
+    await get('/api/air/53').expect(404);
+    await get('/api/air/1e3').expect(404);
+
+    await aggregates.saveDiscovery([], new Date('2026-10-27T00:10:00Z'));
+    expect(await aggregates.pollableAir()).toEqual([]);
+    expect((await get('/api/air').expect(200)).body).toHaveLength(53);
   });
 
   it('reports hourly coverage per source and city-wide daily air statistics', async () => {

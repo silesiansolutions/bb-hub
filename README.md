@@ -12,7 +12,7 @@ Free spaces in the car parks of Miejski Zarząd Dróg and air quality in Bielsko
 
 | Path | What it is |
 | --- | --- |
-| `apps/api` | NestJS 12 API on Node 24: read-only endpoints over hourly aggregates in MongoDB |
+| `apps/api` | NestJS 12 API on Node 24: read-only endpoints over hourly aggregates in MongoDB, and the collector that feeds them |
 | `apps/web` | Next.js 16 static export: dashboard, car parks, air sensors, statistics |
 | `compose.yaml` | API and Redis with hard memory limits; `--profile local-db` adds a local MongoDB |
 | `.github/workflows/ci.yml` | lint, typecheck, unit and e2e tests against MongoDB and Redis, builds |
@@ -27,6 +27,18 @@ A reading is counted once. An upsert matches only when the reading is newer than
 
 Measured on 2026-10-25 over the full history (car park readings from 2024-01-07 to 2026-10-25; air files from 2024-01-24 to 2026-10-25, with the last Bielsko-Biała measurement on 2026-02-12): 171 MB of data and indexes (474k documents; 60 MB on disk after compression, indexes included) against the 512 MB of a MongoDB Atlas free cluster. Each source adds at most one hourly document per hour, 8,760 in a common year. At the averages measured with `$collStats` on that date (86 B per parking document, 382 B per air document, about 15 B of index per document), that is about 0.9 MB a year per car park and 3.5 MB a year per reporting air sensor.
 
+### Collection
+
+The API process is the only collector. With `COLLECTOR_ENABLED=true` it registers BullMQ job schedulers in Redis (UTC): car parks and air sensors every 5 minutes, Syngeos device discovery at 00:10, the daily export at 00:45.
+
+- Discovery reads the Syngeos device list and keeps the devices whose `city` is Bielsko-Biała (diacritics folded) in `air_devices`. A device from the old configuration keeps its ordinal (1 to 52); any other gets the id `d<device number>`, as in the data repository. A device that leaves the city stays listed with its history and is no longer polled. Zero devices is a valid result.
+- Every Syngeos device response that parses as a JSON object, the first device list of each day, and every car park reading that parses with free spaces not above capacity, is appended to an on-disk buffer of the UTC day (`BUFFER_DIR`), not to Redis, before it goes to the hourly aggregates under the rules above. A line torn by a crash is skipped and counted in the export's `dropped`.
+- The export runs on its own queue, so a slow push never delays a poll. It writes each finished UTC day after the last exported one as `data/<type>/<id>/<YYYY-MM-DD>.json` in the byte format of the data repository, puts every file to R2, then commits them to the data repository in one commit `chore(data): <newest day>` from a shallow, sparse clone. When the push is rejected it fetches the branch again, rewrites the same whole files on top and pushes, three times at most; stale git locks are removed and a broken clone is cloned again before the run. It refuses paths outside `data/` and days up to 2025-06-13, keeps a week of exported buffer days, and retries a failed run up to three times, after 10, 20 and 40 minutes. A day receives readings only while it is the current UTC day and is exported 30 minutes after it ends at the earliest, so an exported day is never rewritten.
+- The deploy key is read from `BB_DATA_SSH_KEY` and copied with mode 0600 next to the clone in the volume; GitHub's published host keys are pinned.
+- `collector_state` holds the last success and failure per source (`parking`, `air`, `discovery`, `export`); `/api/health` shows it without affecting the status.
+- Redis keeps nothing on disk, so the process registers the schedulers again every minute, which also covers a Redis restart. After a process restart both polls run at once, discovery runs if its last success is older than 20 hours, and the export picks up every buffered day not yet exported. Readings missed while the process was down cannot be fetched later: both sources answer only with the current state.
+- If the buffer volume is lost, the days in it that were not exported yet are lost too; R2 and the data repository keep every day exported before. The day files are rebuilt only from the buffer.
+
 All API routes sit under `/api`; interactive documentation at `/api/docs`. Daily views are computed in the `Europe/Warsaw` time zone. A range is rounded out to whole hours or whole Warsaw days, so the first and last points cover a full period; the current hour and day are naturally partial.
 
 | Route | Returns |
@@ -34,10 +46,10 @@ All API routes sit under `/api`; interactive documentation at `/api/docs`. Daily
 | `GET /api/parkings`, `GET /api/parkings/:id` | car parks with the latest reading |
 | `GET /api/parkings/:id/hourly?from&to` | free spaces per hour, up to 31 days (checked before rounding), last 24 hours by default |
 | `GET /api/parkings/:id/daily?from&to` | free spaces per day, up to 400 days (checked before rounding), last 30 days by default |
-| `GET /api/air`, `/api/air/:id`, `/hourly`, `/daily` | the same for air sensors, per metric |
+| `GET /api/air`, `/api/air/:id`, `/hourly`, `/daily` | the same for air sensors, per metric; `:id` is an ordinal or `d<device number>` |
 | `GET /api/stats/coverage?from&to` | hours with data per source and their share of the range up to the current hour |
 | `GET /api/stats/air/daily?from&to` | city-wide daily average (weighted by the number of measurements), minimum and maximum per metric across sensors |
-| `GET /api/health` | MongoDB and Redis status |
+| `GET /api/health` | MongoDB and Redis status, last success and failure per collected source |
 
 ## Configuration
 
@@ -50,6 +62,11 @@ All API routes sit under `/api`; interactive documentation at `/api/docs`. Daily
 | `ORIGIN_SECRET` | value of the `x-origin-secret` header the edge proxy sends; required in production |
 | `ORIGIN_SECRET_DISABLED` | `true` lets production start without `ORIGIN_SECRET` |
 | `CORS_ORIGIN` | origin of a local site during development; refused in production |
+| `COLLECTOR_ENABLED` | `true` runs the collector in this process; needs `BUFFER_DIR`, and in production every variable below |
+| `BUFFER_DIR` | directory of the daily raw buffer |
+| `R2_ENDPOINT`, `R2_BUCKET`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` | S3 endpoint of the R2 account, bucket and an access key limited to it |
+| `BB_DATA_REPO`, `BB_DATA_DIR`, `BB_DATA_SSH_KEY` | data repository URL, path of its local clone, and the deploy key with write access |
+| `BB_DATA_GIT_NAME`, `BB_DATA_GIT_EMAIL` | author of the daily data commits; `compose.yaml` defaults to the `rylkobot` account |
 | `NEXT_PUBLIC_API_URL` | site only, at build time: API base, `/api` by default |
 
 With `ORIGIN_SECRET` set, every API route except `/api/health` and the documentation (`/api/docs`, `/api/docs-json`) requires the header, so only the edge proxy reaches the data. The rate limit is 120 requests a minute per client, keyed on `CF-Connecting-IP`, falling back to the socket address; `X-Forwarded-For` is ignored. Statistics routes allow 10 requests a minute per client, compute one uncached result at a time with at most four waiting (beyond that they answer 503), and keep up to 24 results in memory for an hour. Successful responses carry `Cache-Control: public` (5 minutes, statistics 1 hour); errors are never cached.
@@ -79,7 +96,7 @@ MONGODB_URI=mongodb://localhost:27017/bb_e2e REDIS_URL=redis://localhost:6379 pn
 pnpm --filter @bb-hub/api build && MONGODB_URI=... node apps/api/dist/backfill/backfill.js --dir <data> --dir <backup-data>
 ```
 
-Node 24 (`.nvmrc`) and pnpm 11 (`packageManager`). The site build writes a static export to `apps/web/out`. The e2e suite drops its database and refuses to run unless the name ends with `_e2e`. The last command imports raw `<type>/<id>/<YYYY-MM-DD>.json` trees, merged by reading time; `--any-city` keeps air readings from other towns.
+Node 24 (`.nvmrc`) and pnpm 11 (`packageManager`). The site build writes a static export to `apps/web/out`. The e2e suite drops its database and refuses to run unless the name ends with `_e2e`. With `BB_DATA_VALIDATOR` pointing at `scripts/validate-layout.mjs` of a data repository checkout, the unit tests also run the exported files through that validator. The last command imports raw `<type>/<id>/<YYYY-MM-DD>.json` trees, merged by reading time; `--any-city` keeps air readings from other towns.
 
 ## Contributing
 

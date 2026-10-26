@@ -1,3 +1,5 @@
+import { AirId } from '../catalog/catalog';
+
 export const AIR_METRICS = [
   'temperature',
   'humidity',
@@ -24,7 +26,7 @@ export interface ParkingReading {
 }
 
 export interface AirSample {
-  deviceId: number;
+  deviceId: AirId;
   metric: AirMetric;
   at: Date;
   value: number;
@@ -52,7 +54,7 @@ export interface AirStat extends Stat {
 }
 
 export interface AirHourly {
-  _id: { s: number; h: Date };
+  _id: { s: AirId; h: Date };
   m: Partial<Record<AirMetric, AirStat>>;
 }
 

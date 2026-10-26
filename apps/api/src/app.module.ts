@@ -7,6 +7,7 @@ import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 
 import { AggregatesModule } from './aggregates/aggregates.module';
 import { AirController } from './air/air.controller';
+import { CollectorModule } from './collector/collector.module';
 import { CacheInterceptor } from './common/cache';
 import { OriginGuard } from './common/origin.guard';
 import { validateEnv } from './config/env';
@@ -36,6 +37,7 @@ import { StatsController } from './stats/stats.controller';
     }),
     TerminusModule,
     AggregatesModule,
+    CollectorModule,
   ],
   controllers: [ParkingController, AirController, StatsController, HealthController],
   providers: [

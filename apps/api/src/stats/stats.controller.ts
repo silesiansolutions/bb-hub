@@ -5,7 +5,7 @@ import { Throttle } from '@nestjs/throttler';
 
 import { AggregatesService } from '../aggregates/aggregates.service';
 import { statView } from '../aggregates/hourly';
-import { AIR_DEVICES, PARKINGS } from '../catalog/catalog';
+import { mergeAirDevices, PARKINGS } from '../catalog/catalog';
 import { PublicCache } from '../common/cache';
 import { DAILY_RANGE, RangeQuery, resolveRange } from '../common/range';
 
@@ -58,8 +58,9 @@ export class StatsController {
         return { id: p.id, name: p.name, hours, share: share(hours, from, to) };
       }),
     );
+    const devices = mergeAirDevices(await this.aggregates.discoveredAir());
     const air = await Promise.all(
-      AIR_DEVICES.map(async (a) => {
+      devices.map(async (a) => {
         const hours = await this.aggregates.airHours(a.id, from, to);
 
         return { id: a.id, name: a.name, hours, share: share(hours, from, to) };
@@ -72,7 +73,7 @@ export class StatsController {
   private async loadAirDaily(from: Date, to: Date) {
     const days = new Map<number, CityDay>();
 
-    for (const device of AIR_DEVICES) {
+    for (const device of mergeAirDevices(await this.aggregates.discoveredAir())) {
       addSensorDays(days, await this.aggregates.airDaily(device.id, from, to));
     }
 

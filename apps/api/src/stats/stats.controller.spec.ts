@@ -20,6 +20,7 @@ describe('StatsController', () => {
         return 0;
       },
       airHours: async () => 0,
+      discoveredAir: async () => [],
     } as unknown as AggregatesService;
     const controller = new StatsController(aggregates);
     const headers: Record<string, string> = {};

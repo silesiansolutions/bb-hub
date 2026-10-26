@@ -4,6 +4,9 @@ import type { AirSensor } from './types';
 export const readingIsCurrent = (reading: { at: string } | undefined, now: number): boolean =>
   reading !== undefined && !isStale(reading.at, now);
 
+export const parseAirId = (value: string | null): string | undefined =>
+  value !== null && /^(?:[1-9]\d*|d[1-9]\d*)$/.test(value) ? value : undefined;
+
 export const hasData = (sensor: AirSensor) => sensor.latest !== null;
 
 export const isCurrent = (sensor: AirSensor, now: number) => sensor.latest !== null && !isStale(sensor.latest.at, now);

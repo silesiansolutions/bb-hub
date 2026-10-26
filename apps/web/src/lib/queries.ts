@@ -22,11 +22,11 @@ const useRows = <T extends BaseRecord>(resource: string, query?: Record<string, 
   return { rows: result.data, loading: q.isLoading, failed: q.isError, refetch: () => void q.refetch() };
 };
 
-const useRow = <T extends BaseRecord>(resource: string, id: number): Row<T> => {
+const useRow = <T extends BaseRecord>(resource: string, id: number | string | undefined, enabled: boolean): Row<T> => {
   const { query: q, result } = useOne<T>({
     resource,
-    id,
-    queryOptions: { ...options, enabled: Number.isInteger(id) },
+    id: id ?? '',
+    queryOptions: { ...options, enabled },
   });
 
   return {
@@ -39,14 +39,14 @@ const useRow = <T extends BaseRecord>(resource: string, id: number): Row<T> => {
 };
 
 export const useParkings = () => useRows<Parking>('parkings');
-export const useParking = (id: number) => useRow<Parking>('parkings', id);
+export const useParking = (id: number) => useRow<Parking>('parkings', id, Number.isInteger(id));
 export const useParkingHourly = (id: number, range: Range) => useRows<ParkingHourly>(`parkings/${id}/hourly`, range, Number.isInteger(id));
 export const useParkingDaily = (id: number, range: Range) => useRows<ParkingDaily>(`parkings/${id}/daily`, range, Number.isInteger(id));
 
 export const useAirSensors = () => useRows<AirSensor>('air');
-export const useAirSensor = (id: number) => useRow<AirSensor>('air', id);
-export const useAirHourly = (id: number, range: Range) => useRows<AirHourly>(`air/${id}/hourly`, range, Number.isInteger(id));
-export const useAirDaily = (id: number, range: Range) => useRows<AirDaily>(`air/${id}/daily`, range, Number.isInteger(id));
+export const useAirSensor = (id: string | undefined) => useRow<AirSensor>('air', id, id !== undefined);
+export const useAirHourly = (id: string | undefined, range: Range) => useRows<AirHourly>(`air/${id}/hourly`, range, id !== undefined);
+export const useAirDaily = (id: string | undefined, range: Range) => useRows<AirDaily>(`air/${id}/daily`, range, id !== undefined);
 
 export const useCoverage = (range: Range) => {
   const { query: q, result } = useOne<Coverage>({

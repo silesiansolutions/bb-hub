@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { isCurrent, newestAt, readingIsCurrent, sortSensors } from './air.ts';
+import { isCurrent, newestAt, parseAirId, readingIsCurrent, sortSensors } from './air.ts';
 import { isStale } from './stale.ts';
 import type { AirSensor } from './types';
 
@@ -44,4 +44,13 @@ test('current sensors come first, sensors without data are hidden, newest time i
   assert.deepEqual(sortSensors([old, empty, fresh], now).map((s) => s.id), [2, 1]);
   assert.equal(newestAt([old, empty, fresh]), '2026-10-25T11:00:00Z');
   assert.equal(newestAt([empty]), null);
+});
+
+test('accepts legacy and discovered sensor ids from the address bar, nothing else', () => {
+  assert.equal(parseAirId('7'), '7');
+  assert.equal(parseAirId('d10587'), 'd10587');
+
+  for (const bad of [null, '', '0', '07', 'd', 'd0', 'D10587', '1e3', '../1', ' 7']) {
+    assert.equal(parseAirId(bad), undefined);
+  }
 });
