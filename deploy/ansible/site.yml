@@ -58,7 +58,7 @@
       ansible.builtin.command: docker compose version --short
       register: compose_version
       changed_when: false
-      failed_when: compose_version.rc != 0 or compose_version.stdout is version('2.30.0', '<')
+      failed_when: compose_version.rc != 0 or compose_version.stdout | trim | regex_replace('^v', '') is version('2.30.0', '<')
       when: not ansible_check_mode
 
     - name: Application directory is private to root
