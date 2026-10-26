@@ -19,6 +19,21 @@
     bb_data_deploy_key: "{{ lookup('ansible.builtin.env', 'BB_DATA_DEPLOY_KEY', default=undef()) }}"
 
   tasks:
+    - name: Every setting is present and the image tag names a commit
+      ansible.builtin.assert:
+        that:
+          - api_tag is match('^sha-[0-9a-f]{40}$')
+          - api_port | string is match('^[0-9]+$')
+          - mongodb_uri | length > 0
+          - origin_secret | length >= 32
+          - r2_endpoint | length > 0
+          - r2_bucket | length > 0
+          - r2_access_key_id | length > 0
+          - r2_secret_access_key | length > 0
+          - bb_data_deploy_key is search('PRIVATE KEY')
+        quiet: true
+      no_log: true
+
     - name: Docker engine and the compose plugin are installed
       ansible.builtin.apt:
         name: [docker.io, docker-compose-v2]
@@ -33,8 +48,10 @@
         enabled: true
       ignore_errors: "{{ ansible_check_mode }}"
 
-    - name: Docker can run a container in this container host
-      ansible.builtin.command: docker run --rm --pull missing hello-world
+    - name: Docker can run a memory-limited container with a published port here
+      ansible.builtin.command: >-
+        docker run --rm --pull missing --memory 32m --memory-swap 32m -p 127.0.0.1::6379
+        redis:8.10.2-alpine redis-server --version
       changed_when: false
       when: not ansible_check_mode
 
@@ -100,21 +117,21 @@
         wait_timeout: 120
       when: not ansible_check_mode
 
-    - name: API answers its health check on the published port
+    - name: API answers its health check on the published port, over IPv4 and IPv6
       ansible.builtin.uri:
-        url: "http://127.0.0.1:{{ api_port }}/api/health"
+        url: "http://{{ item }}:{{ api_port }}/api/health"
         status_code: 200
       register: health
       until: health.status == 200
       retries: 12
       delay: 5
+      loop: ["127.0.0.1", "[::1]"]
       when: not ansible_check_mode
 
     - name: Server logbook names the application
       ansible.builtin.blockinfile:
         path: /root/MCP_documentation.md
         create: true
-        mode: "0600"
         marker: "<!-- {mark} bb-hub -->"
         block: |
           ## bb-hub (managed by Ansible from silesiansolutions/bb-hub, deploy/ansible/site.yml)
@@ -127,3 +144,4 @@
           - Stop: cd {{ app_dir }} && docker compose down
           - Health check: curl -s http://127.0.0.1:{{ api_port }}/api/health
           - Do not edit by hand: the next deploy overwrites these files.
+      diff: false

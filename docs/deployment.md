@@ -6,7 +6,7 @@ The deployment is code: `deploy/ansible/site.yml` sets up the server, `deploy/co
 
 1. Create a free M0 cluster in a European region.
 2. Create a database user with `readWrite` on the database `bb` only.
-3. Under Network Access, allow the server's outbound addresses. On the server, `curl -s -k -6 https://info.mikr.us` prints them as `info_ipv4` and `info_ipv6`.
+3. Under Network Access, allow the server's outbound addresses. On the server, `curl -s -k -6 https://info.mikr.us` prints them as `info_ipv4` and `info_ipv6`. The IPv4 address is shared by other Mikrus servers, so the database user's password is what protects the cluster; make it long and random.
 4. Copy the connection string, with `/bb` as the database, into the secret `MONGODB_URI`.
 5. Load the history from a machine with a checkout of `silesiansolutions/bb-data`:
 
@@ -40,7 +40,7 @@ The daily commits are authored as `rylkobot` (set in the playbook); the deploy k
 
 1. `openssl rand -hex 32` goes to `ORIGIN_SECRET`; the Worker sends it, the API refuses requests without it.
 2. `https://<name>-<API_PORT>.mikrus.cloud` goes to `ORIGIN_URL`. The Worker reads it as a secret, so the origin address never appears in the repository.
-3. Create a Cloudflare API token with Workers Scripts Edit (account) and Workers Routes Edit (zone `silesiansolutions.com`). Put it in `CLOUDFLARE_API_TOKEN` and the account id in `CLOUDFLARE_ACCOUNT_ID`.
+3. Create a Cloudflare API token with Workers Scripts Edit (account), and Zone Read plus Workers Routes Edit (zone `silesiansolutions.com`). Put it in `CLOUDFLARE_API_TOKEN` and the account id in `CLOUDFLARE_ACCOUNT_ID`.
 4. DNS: in the zone `silesiansolutions.com`, add a proxied `AAAA` record `bb` pointing to `100::`. The Worker route `bb.silesiansolutions.com/*` answers on it; the address is never contacted.
 
 ## 6. Repository secrets
@@ -57,14 +57,17 @@ In `silesiansolutions/bb-hub`, Settings, Secrets and variables, Actions, add eve
 
 ## 7. Image
 
-The `image` workflow pushes `ghcr.io/silesiansolutions/bb-hub-api:sha-<commit>` and `:latest` on every master change to the API. After its first run, open the package `bb-hub-api` under the organisation's packages and set its visibility to public, so the server pulls it without credentials.
+The `image` workflow pushes `ghcr.io/silesiansolutions/bb-hub-api:sha-<commit>` and `:latest` on every master change to the API, and can be started by hand. Run it once before the first deployment, then open the package `bb-hub-api` under the organisation's packages and set its visibility to public, so the server pulls it without credentials. The `sha-<commit>` tag of that run is the `api_tag` to deploy.
 
 ## Running a deployment
 
-- A dry run happens on every pull request that touches `deploy/`, `apps/edge/` or the workflow, once the secrets exist: `ansible-playbook --check --diff` against the server and `wrangler deploy --dry-run`. Secrets never appear in the diff.
-- Actions, `deploy`, Run workflow: `mode` `check` repeats the dry run, `apply` installs Docker and the compose plugin on the first run, starts the stack with the given `api_tag` (`sha-<commit>` of master), deploys the Worker with its secrets, then checks the site, `/api/health` and `/api/parkings` through Cloudflare.
-- The playbook stops when Docker cannot run a container on the server; there is no fallback runtime.
-- Rollback: run `apply` again with the previous `api_tag`. For the Worker, `pnpm --filter @bb-hub/edge exec wrangler rollback`.
+Actions, `deploy`, Run workflow, on `master` only, with `api_tag` set to `sha-<full commit sha>` of an image the `image` workflow built.
+
+- `check` runs `ansible-playbook --check --diff` against the server and `wrangler deploy --dry-run`. It changes nothing on the server and hides the secret files and the server logbook from the diff. It cannot prove that Docker runs on the server, because Docker is not installed yet: the first `apply` is that test.
+- `apply` installs Docker and the compose plugin, runs a memory-limited probe container with a published port, writes the files under `/root/MCPAPPS/bb-hub`, starts the stack with the given image, waits for `/api/health` on IPv4 and IPv6, deploys the Worker with its secrets, then checks the site, `/api/health` and `/api/parkings` through Cloudflare.
+- If the probe container fails, the run stops before the stack is touched; there is no fallback runtime. Docker stays installed and can be removed with `apt purge docker.io docker-compose-v2`.
+- The workflow refuses to run without the secrets or with a tag that is not a full commit sha.
+- Rollback: run `apply` again from the commit to return to, with that commit's `api_tag`, so the API and the site match. For the Worker alone, `wrangler rollback` from `apps/edge` with `CLOUDFLARE_API_TOKEN` set locally.
 
 ## After go-live
 

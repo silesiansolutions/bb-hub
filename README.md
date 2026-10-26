@@ -17,7 +17,9 @@ Free spaces in the car parks of Miejski Zarząd Dróg and air quality in Bielsko
 | `apps/edge` | Cloudflare Worker: static assets of the site, `/api` forwarded to the origin |
 | `deploy` | production compose file and the Ansible playbook for the server |
 | `compose.yaml` | API and Redis with hard memory limits; `--profile local-db` adds a local MongoDB |
-| `.github/workflows/ci.yml` | lint, typecheck, unit and e2e tests against MongoDB and Redis, builds |
+| `.github/workflows/ci.yml` | lint, typecheck, unit and e2e tests against MongoDB and Redis, builds, deployment config checks |
+| `.github/workflows/image.yml` | API image to GHCR on every master change to the API |
+| `.github/workflows/deploy.yml` | manual dry run or apply of the server and the Worker, from master |
 
 MongoDB keeps hourly aggregates, not raw readings; the raw history lives outside the database. One document per source and UTC hour, keyed by a compound `_id`, so the `_id` index is the only index:
 
@@ -75,7 +77,7 @@ With `ORIGIN_SECRET` set, every API route except `/api/health` and the documenta
 
 ## Deployment
 
-The API runs from the image `ghcr.io/silesiansolutions/bb-hub-api` with Redis, under `deploy/compose.yaml` on a small VPS, set up by the Ansible playbook in `deploy/ansible`. The site is the static export in `apps/web/out`, served by the Cloudflare Worker in `apps/edge` at bb.silesiansolutions.com. The Worker forwards `/api` to the origin with the origin secret and the client address, and caches public responses at the edge. `.github/workflows/deploy.yml` dry-runs both on pull requests and applies them on demand; [docs/deployment.md](docs/deployment.md) lists the one-time manual steps and the secrets.
+The API runs from the image `ghcr.io/silesiansolutions/bb-hub-api` with Redis, under `deploy/compose.yaml` on a small VPS, set up by the Ansible playbook in `deploy/ansible`. The site is the static export in `apps/web/out`, served by the Cloudflare Worker in `apps/edge` at bb.silesiansolutions.com. The Worker forwards `/api` to the origin with the origin secret and the client address, and caches public responses at the edge. `.github/workflows/deploy.yml`, started by hand from master, dry-runs or applies both; [docs/deployment.md](docs/deployment.md) lists the one-time manual steps and the secrets.
 
 ## Data sources
 

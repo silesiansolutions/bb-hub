@@ -1,11 +1,6 @@
 name: deploy
 
 on:
-  pull_request:
-    paths:
-      - deploy/**
-      - apps/edge/**
-      - .github/workflows/deploy.yml
   workflow_dispatch:
     inputs:
       mode:
@@ -14,7 +9,7 @@ on:
         options: [check, apply]
         default: check
       api_tag:
-        description: API image tag on GHCR, sha-<commit> of master
+        description: API image tag on GHCR, sha-<full commit sha> of master
         type: string
         required: true
 
@@ -22,34 +17,35 @@ permissions:
   contents: read
 
 concurrency:
-  group: deploy
+  group: deploy-${{ inputs.mode }}
   cancel-in-progress: false
 
 env:
-  MODE: ${{ github.event_name == 'workflow_dispatch' && inputs.mode || 'check' }}
-  API_TAG: ${{ inputs.api_tag || 'latest' }}
+  MODE: ${{ inputs.mode }}
+  API_TAG: ${{ inputs.api_tag }}
 
 jobs:
   api:
+    if: github.ref == 'refs/heads/master'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7.0.1
-      - name: Secrets present
-        id: ready
+        with:
+          persist-credentials: false
+      - name: Inputs and secrets present
         env:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
-        run: echo "ready=${DEPLOY_HOST:+yes}" >> "$GITHUB_OUTPUT"
+        run: |
+          [[ "$API_TAG" =~ ^sha-[0-9a-f]{40}$ ]] || { echo "api_tag must be sha-<40 hex>"; exit 1; }
+          [ -n "$DEPLOY_HOST" ] || { echo "Deployment secrets are not set; see docs/deployment.md"; exit 1; }
       - uses: actions/setup-python@v7.1.0
-        if: steps.ready.outputs.ready == 'yes'
         with:
           python-version: "3.12"
       - name: Ansible
-        if: steps.ready.outputs.ready == 'yes'
         run: |
           pip install ansible-core==2.21.5
           ansible-galaxy collection install community.docker:5.4.0
       - name: SSH access
-        if: steps.ready.outputs.ready == 'yes'
         env:
           DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
           DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
@@ -58,8 +54,7 @@ jobs:
           printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy
           printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/deploy ~/.ssh/known_hosts
-      - name: Playbook (${{ env.MODE }})
-        if: steps.ready.outputs.ready == 'yes'
+      - name: Playbook (${{ inputs.mode }})
         working-directory: deploy/ansible
         env:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
@@ -77,15 +72,17 @@ jobs:
           [ "$MODE" = apply ] || flags=(--check --diff)
           ansible-playbook site.yml -i "${DEPLOY_HOST}," -u root -e "ansible_port=${DEPLOY_PORT}" \
             --private-key ~/.ssh/deploy "${flags[@]}"
-      - name: Skipped
-        if: steps.ready.outputs.ready != 'yes'
-        run: echo "Deployment secrets are not set yet; see docs/deployment.md."
+      - name: Forget the key
+        if: always()
+        run: rm -f ~/.ssh/deploy
 
   web:
     needs: api
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
       - uses: pnpm/action-setup@v6.1.0
       - uses: actions/setup-node@v7.1.0
         with:
@@ -93,7 +90,12 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile --filter @bb-hub/web --filter @bb-hub/edge
       - run: pnpm --filter @bb-hub/web build
-      - name: Worker (${{ env.MODE }})
+      - name: Worker dry run
+        if: inputs.mode != 'apply'
+        working-directory: apps/edge
+        run: pnpm exec wrangler deploy --dry-run --outdir dist
+      - name: Worker deploy
+        if: inputs.mode == 'apply'
         working-directory: apps/edge
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -101,18 +103,15 @@ jobs:
           ORIGIN_URL: ${{ secrets.ORIGIN_URL }}
           ORIGIN_SECRET: ${{ secrets.ORIGIN_SECRET }}
         run: |
-          if [ "$MODE" != apply ]; then
-            pnpm exec wrangler deploy --dry-run --outdir dist
-            exit 0
-          fi
+          [ -n "$ORIGIN_URL" ] && [ -n "$ORIGIN_SECRET" ] && [ -n "$CLOUDFLARE_API_TOKEN" ] || { echo "Worker secrets are not set"; exit 1; }
           umask 077
           jq -n '{ORIGIN_URL: env.ORIGIN_URL, ORIGIN_SECRET: env.ORIGIN_SECRET}' > "$RUNNER_TEMP/worker-secrets.json"
+          trap 'rm -f "$RUNNER_TEMP/worker-secrets.json"' EXIT
           pnpm exec wrangler deploy --secrets-file "$RUNNER_TEMP/worker-secrets.json"
-          rm -f "$RUNNER_TEMP/worker-secrets.json"
 
   verify:
     needs: web
-    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'apply'
+    if: inputs.mode == 'apply'
     runs-on: ubuntu-24.04
     steps:
       - name: Site and API answer through Cloudflare
