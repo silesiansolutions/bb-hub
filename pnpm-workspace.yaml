@@ -7,3 +7,7 @@ allowBuilds:
   '@swc/core': true
   msgpackr-extract: true
   unrs-resolver: true
+
+overrides:
+  '@nestjs/platform-express>multer': ^2.5.0
+  path-to-regexp@>=8.0.0 <8.4.0: ^8.4.2
