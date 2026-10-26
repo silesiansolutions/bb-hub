@@ -43,9 +43,9 @@ The daily commits are authored as `rylkobot` (set in the playbook); the deploy k
 3. Create a Cloudflare API token with Workers Scripts Edit (account), and Zone Read plus Workers Routes Edit (zone `silesiansolutions.com`). Put it in `CLOUDFLARE_API_TOKEN` and the account id in `CLOUDFLARE_ACCOUNT_ID`.
 4. DNS: in the zone `silesiansolutions.com`, add a proxied `AAAA` record `bb` pointing to `100::`. The Worker route `bb.silesiansolutions.com/*` answers on it; the address is never contacted.
 
-## 6. Repository secrets
+## 6. Environment and secrets
 
-In `silesiansolutions/bb-hub`, Settings, Secrets and variables, Actions, add every secret named above:
+In `silesiansolutions/bb-hub`, Settings, Environments, create `production` and limit its deployment branches to `master`. Add every secret named above to that environment, not to the repository, so only a run from `master` can read them:
 
 | Secret | From step |
 | --- | --- |
@@ -61,13 +61,13 @@ The `image` workflow pushes `ghcr.io/silesiansolutions/bb-hub-api:sha-<commit>` 
 
 ## Running a deployment
 
-Actions, `deploy`, Run workflow, on `master` only, with `api_tag` set to `sha-<full commit sha>` of an image the `image` workflow built.
+Actions, `deploy`, Run workflow, on `master`, with `api_tag` set to `sha-<full commit sha>` of an image the `image` workflow built.
 
 - `check` runs `ansible-playbook --check --diff` against the server and `wrangler deploy --dry-run`. It changes nothing on the server and hides the secret files and the server logbook from the diff. It cannot prove that Docker runs on the server, because Docker is not installed yet: the first `apply` is that test.
 - `apply` installs Docker and the compose plugin, runs a memory-limited probe container with a published port, writes the files under `/root/MCPAPPS/bb-hub`, starts the stack with the given image, waits for `/api/health` on IPv4 and IPv6, deploys the Worker with its secrets, then checks the site, `/api/health` and `/api/parkings` through Cloudflare.
 - If the probe container fails, the run stops before the stack is touched; there is no fallback runtime. Docker stays installed and can be removed with `apt purge docker.io docker-compose-v2`.
-- The workflow refuses to run without the secrets or with a tag that is not a full commit sha.
-- Rollback: run `apply` again from the commit to return to, with that commit's `api_tag`, so the API and the site match. For the Worker alone, `wrangler rollback` from `apps/edge` with `CLOUDFLARE_API_TOKEN` set locally.
+- The workflow refuses to run from any branch but `master`, with a tag that is not a full commit sha, or without the SSH and Cloudflare secrets; the playbook then checks every setting it writes before touching the server.
+- Rollback of the API: run `apply` from `master` with an earlier `api_tag`; the site and the Worker stay as on `master`. Rollback of everything: revert the change on `master`, then run `apply` with the matching `api_tag`. The Worker alone: `wrangler rollback` from `apps/edge` with `CLOUDFLARE_API_TOKEN` set locally.
 
 ## After go-live
 

@@ -32,7 +32,6 @@
           - r2_secret_access_key | length > 0
           - bb_data_deploy_key is search('PRIVATE KEY')
         quiet: true
-      no_log: true
 
     - name: Docker engine and the compose plugin are installed
       ansible.builtin.apt:
@@ -50,9 +49,16 @@
 
     - name: Docker can run a memory-limited container with a published port here
       ansible.builtin.command: >-
-        docker run --rm --pull missing --memory 32m --memory-swap 32m -p 127.0.0.1::6379
+        docker run --rm --pull missing --memory 32m --memory-swap 32m -p 0.0.0.0::6379 -p [::]::6379
         redis:8.10.2-alpine redis-server --version
       changed_when: false
+      when: not ansible_check_mode
+
+    - name: Compose plugin reads env_file formats
+      ansible.builtin.command: docker compose version --short
+      register: compose_version
+      changed_when: false
+      failed_when: compose_version.rc != 0 or compose_version.stdout is version('2.30.0', '<')
       when: not ansible_check_mode
 
     - name: Application directory is private to root
