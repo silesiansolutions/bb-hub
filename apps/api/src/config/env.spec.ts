@@ -32,4 +32,13 @@ describe('validateEnv', () => {
     expect(() => validateEnv({ ...example, NODE_ENV: 'production', CORS_ORIGIN: '' })).toThrow('ORIGIN_SECRET is required in production');
     expect(() => validateEnv({ ...base, ORIGIN_SECRET_DISABLED: '1' })).toThrow();
   });
+
+  it('needs a buffer for the collector, and every export credential in production', () => {
+    expect(() => validateEnv({ ...base, COLLECTOR_ENABLED: 'true' })).toThrow('COLLECTOR_ENABLED=true needs BUFFER_DIR');
+    expect(() => validateEnv({ ...base, COLLECTOR_ENABLED: 'true', BUFFER_DIR: '/var/lib/bb/buffer' })).not.toThrow();
+    expect(() => validateEnv({ ...base, NODE_ENV: 'production', ORIGIN_SECRET: 's', COLLECTOR_ENABLED: 'true', BUFFER_DIR: '/b' })).toThrow(
+      'COLLECTOR_ENABLED=true needs R2_ENDPOINT, R2_BUCKET, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, BB_DATA_REPO, BB_DATA_DIR, BB_DATA_GIT_NAME, BB_DATA_GIT_EMAIL, BB_DATA_SSH_KEY',
+    );
+    expect(() => validateEnv({ ...base, NODE_ENV: 'production', ORIGIN_SECRET: 's', COLLECTOR_ENABLED: 'false' })).not.toThrow();
+  });
 });

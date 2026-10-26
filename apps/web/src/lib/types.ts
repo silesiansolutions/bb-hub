@@ -18,14 +18,14 @@ export type ParkingDaily = { day: string; capacity: number; available: Stat };
 export type AirReading = { value: number; at: string };
 
 export type AirSensor = {
-  id: number;
+  id: number | string;
   provider: string;
   device: number;
   name: string;
   latest: { at: string; metrics: Partial<Record<MetricKey, AirReading>> } | null;
 };
 
-export type CoverageRow = { id: number; name: string; hours: number; share: number };
+export type CoverageRow = { id: number | string; name: string; hours: number; share: number };
 export type Coverage = { from: string; to: string; parkings: CoverageRow[]; air: CoverageRow[] };
 export type CityStat = Stat & { sensors: number };
 export type CityAirDaily = { day: string; metrics: Partial<Record<MetricKey, CityStat>> };

@@ -2,7 +2,7 @@ import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { AirSample, ParkingReading } from '../aggregates/hourly';
-import { isInCity, parseSyngeos } from '../providers/syngeos';
+import { acceptSamples, isInCity, parseSyngeos } from '../providers/syngeos';
 
 interface RawParking {
   date?: string;
@@ -15,7 +15,6 @@ interface RawAir {
   originalData?: unknown;
 }
 
-const READ_AT_TOLERANCE_MS = 5 * 60_000;
 
 const DAY_FILE = /^(\d{4}-\d{2}-\d{2})\.json$/;
 
@@ -173,15 +172,11 @@ export const airSamples = async (id: number, files: string[], city: string | und
 
     lastInCity = fetchedAt;
 
-    for (const { metric, at, value } of parsed.values) {
-      if (!at) {
-        noReadAt++;
-      } else if (at.getTime() > fetchedAt.getTime() + READ_AT_TOLERANCE_MS) {
-        futureReadAt++;
-      } else {
-        samples.push({ deviceId: id, metric, at, value });
-      }
-    }
+    const accepted = acceptSamples(id, parsed.values, fetchedAt);
+
+    samples.push(...accepted.samples);
+    noReadAt += accepted.noReadAt;
+    futureReadAt += accepted.futureReadAt;
   }
 
   return { samples, outsideCity, lastInCity, dropped: { ...dropped, noValue, unknownSensor, nonNumeric, noReadAt, futureReadAt, unknownNames: [...unknownNames].sort() } };

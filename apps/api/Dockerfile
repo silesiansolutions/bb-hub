@@ -11,6 +11,9 @@ RUN pnpm --filter @bb-hub/api build \
 
 FROM node:24.22.1-alpine
 ENV NODE_ENV=production
+RUN apk add --no-cache git openssh-client \
+ && mkdir -p /var/lib/bb \
+ && chown node:node /var/lib/bb
 WORKDIR /app
 COPY --from=build /out/package.json ./
 COPY --from=build /out/node_modules ./node_modules

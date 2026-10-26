@@ -6,7 +6,7 @@ import { useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 
 import { useI18n } from '@/i18n';
-import { isCurrent } from '@/lib/air';
+import { isCurrent, parseAirId } from '@/lib/air';
 import { DAILY_MAX_DAYS, HOURLY_MAX_DAYS } from '@/lib/config';
 import { useFormat } from '@/lib/format';
 import { formatMetric, metricDigits } from '@/lib/metric-format';
@@ -24,8 +24,6 @@ import { StaleTag } from './stale-tag';
 const HOURLY_LIMIT = presetSpan(HOURLY_MAX_DAYS);
 const DAILY_LIMIT = presetSpan(DAILY_MAX_DAYS);
 
-const parseId = (value: string | null) => (value !== null && /^\d+$/.test(value) ? Number(value) : NaN);
-
 const toPoints = <T,>(rows: T[], at: (row: T) => string, stat: (row: T) => Stat | undefined): SeriesPoint[] =>
   rows.flatMap((row) => {
     const s = stat(row);
@@ -37,7 +35,7 @@ export const AirSensorDetailView = () => {
   const { t } = useI18n();
   const format = useFormat();
   const now = useNow();
-  const id = parseId(useSearchParams().get('id'));
+  const id = parseAirId(useSearchParams().get('id'));
   const sensor = useAirSensor(id);
   const [selected, setSelected] = useState<MetricKey | null>(null);
 
@@ -64,7 +62,7 @@ export const AirSensorDetailView = () => {
   const hourly = useAirHourly(id, hourlyRange.range);
   const daily = useAirDaily(id, dailyRange.range);
 
-  if (!Number.isInteger(id) || sensor.missing) {
+  if (id === undefined || sensor.missing) {
     return <Result status="404" title={t.air.notFound} extra={<Link href="/air">{t.status.back}</Link>} />;
   }
 

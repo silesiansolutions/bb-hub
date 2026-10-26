@@ -1,4 +1,8 @@
-import { AirMetric } from '../aggregates/hourly';
+import { AirMetric, AirSample } from '../aggregates/hourly';
+import { AirId } from '../catalog/catalog';
+
+export const CITY = 'Bielsko-Biała';
+export const READ_AT_TOLERANCE_MS = 5 * 60_000;
 
 const SENSOR_TO_METRIC: Record<string, AirMetric> = {
   temperature: 'temperature',
@@ -99,5 +103,30 @@ const foldCity = (name: string): string =>
     .toLowerCase()
     .trim();
 
-export const isInCity = (reading: SyngeosReading, city: string): boolean =>
-  foldCity(reading.city ?? '').includes(foldCity(city));
+export const cityMatches = (actual: string | undefined, city: string): boolean => foldCity(actual ?? '').includes(foldCity(city));
+
+export const isInCity = (reading: SyngeosReading, city: string): boolean => cityMatches(reading.city, city);
+
+export interface AcceptedSamples {
+  samples: AirSample[];
+  noReadAt: number;
+  futureReadAt: number;
+}
+
+export const acceptSamples = (deviceId: AirId, values: SyngeosMetricValue[], fetchedAt: Date): AcceptedSamples => {
+  const samples: AirSample[] = [];
+  let noReadAt = 0;
+  let futureReadAt = 0;
+
+  for (const { metric, at, value } of values) {
+    if (!at) {
+      noReadAt++;
+    } else if (at.getTime() > fetchedAt.getTime() + READ_AT_TOLERANCE_MS) {
+      futureReadAt++;
+    } else {
+      samples.push({ deviceId, metric, at, value });
+    }
+  }
+
+  return { samples, noReadAt, futureReadAt };
+};
