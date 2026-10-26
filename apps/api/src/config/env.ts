@@ -1,3 +1,5 @@
+import { existsSync } from 'node:fs';
+
 import { plainToInstance, Type } from 'class-transformer';
 import { IsIn, IsInt, IsOptional, IsString, Max, Min, validateSync } from 'class-validator';
 
@@ -101,6 +103,10 @@ export const validateEnv = (raw: Record<string, unknown>): Env => {
 
     if (missing.length > 0) {
       throw new Error(`COLLECTOR_ENABLED=true needs ${missing.join(', ')}`);
+    }
+
+    if (env.BB_DATA_SSH_KEY && !existsSync(env.BB_DATA_SSH_KEY)) {
+      throw new Error('BB_DATA_SSH_KEY does not name a readable file');
     }
   }
 

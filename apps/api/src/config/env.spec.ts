@@ -40,5 +40,7 @@ describe('validateEnv', () => {
       'COLLECTOR_ENABLED=true needs R2_ENDPOINT, R2_BUCKET, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, BB_DATA_REPO, BB_DATA_DIR, BB_DATA_GIT_NAME, BB_DATA_GIT_EMAIL, BB_DATA_SSH_KEY',
     );
     expect(() => validateEnv({ ...base, NODE_ENV: 'production', ORIGIN_SECRET: 's', COLLECTOR_ENABLED: 'false' })).not.toThrow();
+    expect(() => validateEnv({ ...base, COLLECTOR_ENABLED: 'true', BUFFER_DIR: '/b', BB_DATA_SSH_KEY: '/nonexistent/deploy-key' })).toThrow('BB_DATA_SSH_KEY does not name a readable file');
+    expect(() => validateEnv({ ...base, COLLECTOR_ENABLED: 'true', BUFFER_DIR: '/b', BB_DATA_SSH_KEY: __filename })).not.toThrow();
   });
 });

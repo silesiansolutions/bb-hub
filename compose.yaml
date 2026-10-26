@@ -21,14 +21,15 @@ services:
       BB_DATA_REPO: ${BB_DATA_REPO:-}
       BB_DATA_DIR: /var/lib/bb/bb-data
       BB_DATA_SSH_KEY: ${BB_DATA_SSH_KEY:-}
-      BB_DATA_GIT_NAME: ${BB_DATA_GIT_NAME:-}
-      BB_DATA_GIT_EMAIL: ${BB_DATA_GIT_EMAIL:-}
+      BB_DATA_GIT_NAME: ${BB_DATA_GIT_NAME:-rylkobot}
+      BB_DATA_GIT_EMAIL: ${BB_DATA_GIT_EMAIL:-204860200+rylkobot@users.noreply.github.com}
     volumes:
       - collector:/var/lib/bb
     ports:
       - 127.0.0.1:3001:3001
     mem_limit: 256m
     memswap_limit: 256m
+    stop_grace_period: 60s
     depends_on:
       - redis
 

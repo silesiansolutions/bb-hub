@@ -15,7 +15,7 @@ import { AirSource } from '../catalog/catalog';
 
 import { DayBuffer } from './buffer';
 import { CollectorJobsService, exportableDays, Fetcher, SYNGEOS_DEVICES_URL, syngeosDeviceUrl } from './collector-jobs.service';
-import { bootJobs } from './collector-scheduler.service';
+import { bootJobs, ensureSchedulers, SchedulerQueue } from './collector-scheduler.service';
 import { CollectorStateService, Source } from './collector-state.service';
 
 const controlla = (free: number, total: number) => `<div>Wolne miejsca: ${free}</div><div>Pojemność parkingu: ${total}</div>`;
@@ -42,7 +42,7 @@ class Fakes {
   state = {
     success: async (source: Source, _at: Date, detail: Record<string, unknown>) => {
       this.successes.push([source, detail]);
-      this.through = typeof detail.through === 'string' && detail.through !== 'none' ? detail.through : this.through;
+      this.through = typeof detail.through === 'string' ? detail.through : this.through;
     },
     failure: async (source: Source) => void this.failures.push(source),
     exportedThrough: async () => this.through,
@@ -83,6 +83,47 @@ describe('collector jobs', () => {
     expect(bootJobs(undefined, now)).toEqual(['discovery', 'parking', 'air', 'export']);
     expect(bootJobs(new Date('2026-10-26T00:10:00Z'), now)).toEqual(['parking', 'air', 'export']);
     expect(bootJobs(new Date('2026-10-25T00:10:00Z'), now)).toEqual(['discovery', 'parking', 'air', 'export']);
+  });
+
+  it('registers the schedulers again on every resync, the export on its own queue', async () => {
+    const calls: string[] = [];
+    const queue = (name: string) => ({ upsertJobScheduler: async (id: string, repeat: { pattern: string }) => void calls.push(`${name}:${id}:${repeat.pattern}`) }) as unknown as SchedulerQueue;
+    const queues = { collector: queue('collector'), 'collector-export': queue('collector-export') };
+
+    await ensureSchedulers(queues);
+    await ensureSchedulers(queues);
+
+    expect(calls.slice(0, 4)).toEqual(['collector:parking:*/5 * * * *', 'collector:air:*/5 * * * *', 'collector:discovery:10 0 * * *', 'collector-export:export:45 0 * * *']);
+    expect(calls.slice(4)).toEqual(calls.slice(0, 4));
+  });
+
+  it('reads the exported day only when it is a day', async () => {
+    let stored: unknown;
+    const state = new CollectorStateService({ collection: () => ({ findOne: async () => stored }) } as never);
+
+    stored = { _id: 'export', detail: { through: 'none' } };
+    expect(await state.exportedThrough()).toBeUndefined();
+    stored = null;
+    expect(await state.exportedThrough()).toBeUndefined();
+    stored = { _id: 'export', detail: { through: '2026-10-25' } };
+    expect(await state.exportedThrough()).toBe('2026-10-25');
+  });
+
+  it('keeps a reading in the buffer even when Mongo fails, and rejects non-object air responses', async () => {
+    const fakes = new Fakes();
+
+    fakes.aggregates.recordParking = async () => Promise.reject(new Error('mongo down'));
+    fakes.pollable = [{ id: 'd10587', provider: 'syngeos', device: 10587, name: 'Wapienicka 1' }];
+
+    const jobs = service(fakes, { BUFFER_DIR: join(root, 'buffer') }, async (url) => (url.includes('syngeos') ? 'null' : controlla(5, 65)));
+
+    await jobs.run('parking');
+    await expect(jobs.run('air')).rejects.toThrow('all 1 fetches failed');
+
+    const buffer = new DayBuffer(join(root, 'buffer'));
+    const entries = await buffer.read((await buffer.days())[0]);
+
+    expect(entries.map((e) => `${e.type}/${e.id}:${e.lines.length}`)).toEqual(['parking/1:1', 'parking/2:1', 'parking/3:1', 'parking/4:1']);
   });
 
   it('discovers city devices, keeps legacy ordinals, and buffers the list once a day', async () => {
@@ -170,7 +211,7 @@ describe('collector jobs', () => {
 
     await expect(jobs.run('export', new Date('2026-10-26T00:45:00Z'))).rejects.toThrow('export needs R2 and bb-data settings');
     await jobs.run('export', new Date('2026-10-25T23:00:00Z'));
-    expect(fakes.successes).toEqual([['export', { through: 'none', days: 0, files: 0 }]]);
+    expect(fakes.successes).toEqual([['export', { days: 0, files: 0 }]]);
   });
 
   describe('export', () => {
@@ -226,7 +267,7 @@ describe('collector jobs', () => {
       expect(puts.map((p) => p.url)).toEqual(['PUT /bb-data/data/parking/2/2026-10-24.json', 'PUT /bb-data/data/parking/2/2026-10-25.json']);
       expect(puts.every((p) => p.auth.startsWith('AWS4-HMAC-SHA256 Credential=key/'))).toBe(true);
       expect(puts[1].body).toBe(JSON.stringify([{ id: '2', date: '2026-10-25T10:00:00.000Z', availableSpots: 4, totalSpots: 9 }], null, 2));
-      expect(fakes.successes).toEqual([['export', { through: '2026-10-25', days: 2, files: 2, bbData: 'pushed' }]]);
+      expect(fakes.successes).toEqual([['export', { through: '2026-10-25', days: 2, files: 2, dropped: 0, bbData: 'pushed' }]]);
       expect(git(origin, 'log', '-1', '--format=%s', '--name-only')).toBe('chore(data): 2026-10-25\n\ndata/parking/2/2026-10-24.json\ndata/parking/2/2026-10-25.json\n');
       expect(await buffer.days()).toEqual(['2026-10-24', '2026-10-25', '2026-10-26']);
       expect(readFileSync(join(root, 'buffer/2026-10-26/parking--2.ndjson'), 'utf8')).toContain('"availableSpots":5');

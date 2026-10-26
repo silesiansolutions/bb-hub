@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 
@@ -109,5 +109,70 @@ describe('day export', () => {
 
     await expect(repo.publish([{ path: 'data/parking/1/2026-10-26.json', text: '[]' }], 'chore(data): 2026-10-26')).resolves.toBe('pushed');
     expect(git(origin, 'log', '--format=%s', 'master')).toBe('chore(data): 2026-10-26\ndocs: edit\nchore(data): 2026-10-25\nseed\n');
+  });
+
+  it('starts a new line after a torn write and counts what it cannot read', async () => {
+    const path = join(root, 'buffer/2026-10-25/parking--1.ndjson');
+
+    mkdirSync(dirname(path), { recursive: true });
+    writeFileSync(path, '{"date":"2026-10-25T10:00:00.000Z","availableSpots":1,"totalSpots":2}\n{"date":"2026-10-25T10:05');
+
+    const buffer = new DayBuffer(join(root, 'buffer'));
+
+    await buffer.append('parking', '1', { date: '2026-10-25T10:10:00.000Z', availableSpots: 3, totalSpots: 4 });
+    await buffer.append('parking', '1', { date: '2026-10-25T10:15:00.000Z', availableSpots: 5, totalSpots: 6 });
+
+    const [entry] = await buffer.read('2026-10-25');
+
+    expect(entry.lines.map((l) => l.date)).toEqual(['2026-10-25T10:00:00.000Z', '2026-10-25T10:10:00.000Z', '2026-10-25T10:15:00.000Z']);
+    expect(entry.dropped).toBe(1);
+  });
+
+  it('retries a rejected push on top of the moved branch', async () => {
+    const origin = seedOrigin(root);
+    const marker = join(root, 'rejected-once');
+    const hook = join(origin, 'hooks/pre-receive');
+
+    writeFileSync(hook, `#!/bin/sh\nif [ ! -f "${marker}" ]; then touch "${marker}"; echo moved >&2; exit 1; fi\nexit 0\n`);
+    chmodSync(hook, 0o755);
+
+    const repo = new BbDataRepo({ repo: `file://${origin}`, dir: join(root, 'clone'), name: 'bb-hub', email: 'bb-hub@example.invalid' });
+
+    await expect(repo.publish([{ path: 'data/parking/1/2026-10-25.json', text: '[]' }], 'chore(data): 2026-10-25')).resolves.toBe('pushed');
+    expect(existsSync(marker)).toBe(true);
+    expect(git(origin, 'log', '--format=%s', 'master')).toBe('chore(data): 2026-10-25\nseed\n');
+  });
+
+  it('gives up after three rejected pushes', async () => {
+    const origin = seedOrigin(root);
+    const hook = join(origin, 'hooks/pre-receive');
+
+    writeFileSync(hook, '#!/bin/sh\nexit 1\n');
+    chmodSync(hook, 0o755);
+
+    const repo = new BbDataRepo({ repo: `file://${origin}`, dir: join(root, 'clone'), name: 'bb-hub', email: 'bb-hub@example.invalid' });
+
+    await expect(repo.publish([{ path: 'data/parking/1/2026-10-25.json', text: '[]' }], 'chore(data): 2026-10-25')).rejects.toThrow();
+    expect(git(origin, 'rev-list', '--count', 'master')).toBe('1\n');
+  });
+
+  it('recovers from a half-made clone and a stale index lock, and never writes outside data/', async () => {
+    const origin = seedOrigin(root);
+    const dir = join(root, 'clone');
+    const repo = new BbDataRepo({ repo: `file://${origin}`, dir, name: 'bb-hub', email: 'bb-hub@example.invalid' });
+
+    await repo.publish([{ path: 'data/parking/1/2026-10-25.json', text: '[]' }], 'chore(data): 2026-10-25');
+    writeFileSync(join(dir, '.git/index.lock'), '');
+    await expect(repo.publish([{ path: 'data/parking/1/2026-10-26.json', text: '[]' }], 'chore(data): 2026-10-26')).resolves.toBe('pushed');
+
+    rmSync(join(dir, '.git/HEAD'));
+    await expect(repo.publish([{ path: 'data/parking/1/2026-10-27.json', text: '[]' }], 'chore(data): 2026-10-27')).resolves.toBe('pushed');
+    expect(readFileSync(join(dir, '.git/HEAD'), 'utf8')).toContain('master');
+
+    for (const path of ['backup-data/parking/1/2026-10-25.json', 'data/../README.md', 'data/parking/1/x.json']) {
+      await expect(repo.publish([{ path, text: '[]' }], 'chore(data): x')).rejects.toThrow('outside data/');
+    }
+
+    expect(git(origin, 'rev-list', '--count', 'master')).toBe('4\n');
   });
 });

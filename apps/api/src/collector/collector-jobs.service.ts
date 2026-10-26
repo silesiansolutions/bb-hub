@@ -113,9 +113,9 @@ export class CollectorJobsService {
           continue;
         }
 
-        await this.aggregates.recordParking({ parkingId: parking.id, at, available: reading.available, capacity: reading.capacity });
         await this.buffer.append('parking', String(parking.id), { date: at.toISOString(), availableSpots: reading.available, totalSpots: reading.capacity });
         ok++;
+        await this.aggregates.recordParking({ parkingId: parking.id, at, available: reading.available, capacity: reading.capacity });
       } catch (error) {
         this.logger.warn(`parking ${parking.id}: ${(error as Error).message}`);
       }
@@ -134,9 +134,16 @@ export class CollectorJobsService {
 
       try {
         const raw = await this.fetcher(syngeosDeviceUrl(device.device));
-        const parsed = parseSyngeos(JSON.parse(raw));
+        const body = JSON.parse(raw) as unknown;
+
+        if (!body || typeof body !== 'object' || Array.isArray(body)) {
+          throw new Error('response is not a device object');
+        }
 
         await this.buffer.append('climate', String(device.id), { date: at.toISOString(), raw });
+
+        const parsed = parseSyngeos(body);
+
         ok++;
 
         if (parsed && isInCity(parsed, CITY)) {
@@ -179,7 +186,7 @@ export class CollectorJobsService {
     const days = exportableDays(await this.buffer.days(), previous, now);
 
     if (days.length === 0) {
-      return { through: previous ?? 'none', days: 0, files: 0 };
+      return { ...(previous ? { through: previous } : {}), days: 0, files: 0 };
     }
 
     if (!this.r2 || !this.bbData) {
@@ -187,9 +194,13 @@ export class CollectorJobsService {
     }
 
     const files: DayFile[] = [];
+    let dropped = 0;
 
     for (const day of days) {
-      files.push(...buildDayFiles(day, await this.buffer.read(day)));
+      const entries = await this.buffer.read(day);
+
+      dropped += entries.reduce((sum, e) => sum + e.dropped, 0);
+      files.push(...buildDayFiles(day, entries));
     }
 
     for (const file of files) {
@@ -205,7 +216,7 @@ export class CollectorJobsService {
       }
     }
 
-    return { through, days: days.length, files: files.length, bbData: pushed };
+    return { through, days: days.length, files: files.length, dropped, bbData: pushed };
   }
 
   private outcome(source: Source, total: number, ok: number, now: Date): Record<string, number> {

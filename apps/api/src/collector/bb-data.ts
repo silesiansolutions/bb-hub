@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { access, chmod, copyFile, mkdir, writeFile } from 'node:fs/promises';
+import { chmod, copyFile, mkdir, rm, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { promisify } from 'node:util';
 
@@ -26,6 +26,12 @@ export class BbDataRepo {
   constructor(private readonly config: BbDataConfig) {}
 
   async publish(files: DayFile[], message: string): Promise<'pushed' | 'unchanged'> {
+    const outside = files.find((f) => !/^data\/(parking|climate|source)\/[0-9a-z]+\/\d{4}-\d{2}-\d{2}\.json$/.test(f.path));
+
+    if (outside) {
+      throw new Error(`refusing to write ${outside.path} outside data/`);
+    }
+
     const env = await this.env();
 
     await this.ensureClone(env);
@@ -63,9 +69,13 @@ export class BbDataRepo {
   }
 
   private async ensureClone(env: NodeJS.ProcessEnv): Promise<void> {
+    await rm(join(this.config.dir, '.git/index.lock'), { force: true });
+    await rm(join(this.config.dir, '.git/shallow.lock'), { force: true });
+
     try {
-      await access(join(this.config.dir, '.git'));
+      await this.git(env, 'rev-parse', '--verify', '-q', 'HEAD');
     } catch {
+      await rm(this.config.dir, { recursive: true, force: true });
       await mkdir(dirname(this.config.dir), { recursive: true });
       await run('git', ['clone', '-q', '--depth', '1', '--filter=blob:none', '--sparse', '--branch', BRANCH, this.config.repo, this.config.dir], { env, timeout: 300_000 });
     }
@@ -96,6 +106,7 @@ export class BbDataRepo {
       GIT_COMMITTER_NAME: this.config.name,
       GIT_COMMITTER_EMAIL: this.config.email,
       GIT_TERMINAL_PROMPT: '0',
+      GIT_CEILING_DIRECTORIES: dirname(this.config.dir),
     };
 
     if (this.config.sshKey) {

@@ -3,6 +3,8 @@ import { InjectConnection } from '@nestjs/mongoose';
 import { Collection } from 'mongodb';
 import { Connection } from 'mongoose';
 
+const DAY = /^\d{4}-\d{2}-\d{2}$/;
+
 export const SOURCES = ['parking', 'air', 'discovery', 'export'] as const;
 
 export type Source = (typeof SOURCES)[number];
@@ -43,7 +45,7 @@ export class CollectorStateService {
   async exportedThrough(): Promise<string | undefined> {
     const through = (await this.states.findOne({ _id: 'export' }))?.detail?.through;
 
-    return typeof through === 'string' ? through : undefined;
+    return typeof through === 'string' && DAY.test(through) ? through : undefined;
   }
 
   async view(): Promise<Record<Source, SourceView>> {
