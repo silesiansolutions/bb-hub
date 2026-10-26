@@ -1,0 +1,132 @@
+name: deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: check runs a dry run, apply changes the server and the Worker
+        type: choice
+        options: [check, apply]
+        default: check
+      api_tag:
+        description: API image tag on GHCR, sha-<full commit sha> of master
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-${{ inputs.mode }}
+  cancel-in-progress: false
+
+env:
+  MODE: ${{ inputs.mode }}
+  API_TAG: ${{ inputs.api_tag }}
+
+jobs:
+  api:
+    runs-on: ubuntu-24.04
+    environment: production
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Master, a commit tag and every secret
+        env:
+          SECRETS: >-
+            ${{ secrets.DEPLOY_HOST && 'DEPLOY_HOST' || '' }}
+            ${{ secrets.DEPLOY_PORT && 'DEPLOY_PORT' || '' }}
+            ${{ secrets.DEPLOY_SSH_KEY && 'DEPLOY_SSH_KEY' || '' }}
+            ${{ secrets.DEPLOY_KNOWN_HOSTS && 'DEPLOY_KNOWN_HOSTS' || '' }}
+            ${{ secrets.ORIGIN_URL && 'ORIGIN_URL' || '' }}
+            ${{ secrets.CLOUDFLARE_API_TOKEN && 'CLOUDFLARE_API_TOKEN' || '' }}
+            ${{ secrets.CLOUDFLARE_ACCOUNT_ID && 'CLOUDFLARE_ACCOUNT_ID' || '' }}
+        run: |
+          [ "$GITHUB_REF" = refs/heads/master ] || { echo "deploy runs from master only"; exit 1; }
+          [[ "$API_TAG" =~ ^sha-[0-9a-f]{40}$ ]] || { echo "api_tag must be sha-<40 hex>"; exit 1; }
+          for name in DEPLOY_HOST DEPLOY_PORT DEPLOY_SSH_KEY DEPLOY_KNOWN_HOSTS ORIGIN_URL CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID; do
+            [[ " $SECRETS " == *" $name "* ]] || { echo "secret $name is not set; see docs/deployment.md"; exit 1; }
+          done
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+      - name: Ansible
+        run: |
+          pip install ansible-core==2.21.5
+          ansible-galaxy collection install community.docker:5.4.0
+      - name: SSH access
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/deploy ~/.ssh/known_hosts
+      - name: Playbook (${{ inputs.mode }})
+        working-directory: deploy/ansible
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
+          API_PORT: ${{ secrets.API_PORT }}
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          ORIGIN_SECRET: ${{ secrets.ORIGIN_SECRET }}
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          BB_DATA_DEPLOY_KEY: ${{ secrets.BB_DATA_DEPLOY_KEY }}
+        run: |
+          flags=()
+          [ "$MODE" = apply ] || flags=(--check --diff)
+          ansible-playbook site.yml -i "${DEPLOY_HOST}," -u root -e "ansible_port=${DEPLOY_PORT}" \
+            --private-key ~/.ssh/deploy "${flags[@]}"
+      - name: Forget the key
+        if: always()
+        run: rm -f ~/.ssh/deploy
+
+  web:
+    needs: api
+    runs-on: ubuntu-24.04
+    environment: production
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --filter @bb-hub/web --filter @bb-hub/edge
+      - run: pnpm --filter @bb-hub/web build
+      - name: Worker dry run
+        if: inputs.mode != 'apply'
+        working-directory: apps/edge
+        run: pnpm exec wrangler deploy --dry-run --outdir dist
+      - name: Worker deploy
+        if: inputs.mode == 'apply'
+        working-directory: apps/edge
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          ORIGIN_URL: ${{ secrets.ORIGIN_URL }}
+          ORIGIN_SECRET: ${{ secrets.ORIGIN_SECRET }}
+        run: |
+          [ -n "$ORIGIN_URL" ] && [ -n "$ORIGIN_SECRET" ] && [ -n "$CLOUDFLARE_API_TOKEN" ] || { echo "Worker secrets are not set"; exit 1; }
+          umask 077
+          jq -n '{ORIGIN_URL: env.ORIGIN_URL, ORIGIN_SECRET: env.ORIGIN_SECRET}' > "$RUNNER_TEMP/worker-secrets.json"
+          trap 'rm -f "$RUNNER_TEMP/worker-secrets.json"' EXIT
+          pnpm exec wrangler deploy --secrets-file "$RUNNER_TEMP/worker-secrets.json"
+
+  verify:
+    needs: web
+    if: inputs.mode == 'apply'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Site and API answer through Cloudflare
+        run: |
+          curl -fsS --retry 6 --retry-delay 10 --retry-all-errors -o /dev/null -w 'site %{http_code}\n' https://bb.silesiansolutions.com/
+          curl -fsS --retry 6 --retry-delay 10 --retry-all-errors https://bb.silesiansolutions.com/api/health | jq '{status, mongo: .info.mongo.status, redis: .info.redis.status, collector: .info.collector.sources}'
+          curl -fsS https://bb.silesiansolutions.com/api/parkings | jq 'length'

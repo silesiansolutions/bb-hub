@@ -9,7 +9,7 @@ import { AggregatesModule } from './aggregates/aggregates.module';
 import { AirController } from './air/air.controller';
 import { CollectorModule } from './collector/collector.module';
 import { CacheInterceptor } from './common/cache';
-import { OriginGuard } from './common/origin.guard';
+import { clientKey, OriginGuard } from './common/origin.guard';
 import { validateEnv } from './config/env';
 import { HealthController, RedisProbe } from './health/health.controller';
 import { ParkingController } from './parking/parking.controller';
@@ -26,14 +26,17 @@ import { StatsController } from './stats/stats.controller';
         serverSelectionTimeoutMS: 5000,
       }),
     }),
-    ThrottlerModule.forRoot({
-      throttlers: [{ ttl: 60_000, limit: 120 }],
-      getTracker: (req: Record<string, unknown>) => {
-        const headers = req.headers as Record<string, string | undefined> | undefined;
-        const socket = req.socket as { remoteAddress?: string } | undefined;
-
-        return headers?.['cf-connecting-ip'] ?? socket?.remoteAddress ?? 'unknown';
-      },
+    ThrottlerModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => ({
+        throttlers: [{ ttl: 60_000, limit: 120 }],
+        getTracker: (req: Record<string, unknown>) =>
+          clientKey(
+            (req.headers ?? {}) as Record<string, string | undefined>,
+            (req.socket as { remoteAddress?: string } | undefined)?.remoteAddress,
+            config.get<string>('ORIGIN_SECRET'),
+          ),
+      }),
     }),
     TerminusModule,
     AggregatesModule,
