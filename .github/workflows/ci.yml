@@ -35,7 +35,27 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
       - run: pnpm typecheck
+      - name: bb-data read key present
+        id: validator
+        env:
+          BB_DATA_READ_KEY: ${{ secrets.BB_DATA_READ_KEY }}
+        run: |
+          if [ -n "$BB_DATA_READ_KEY" ]; then
+            echo "available=yes" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::BB_DATA_READ_KEY is not set, the bb-data layout validator test is skipped"
+          fi
+      - uses: actions/checkout@v7.0.1
+        if: steps.validator.outputs.available == 'yes'
+        with:
+          repository: silesiansolutions/bb-data
+          ssh-key: ${{ secrets.BB_DATA_READ_KEY }}
+          path: bb-data
+          sparse-checkout: scripts
+          persist-credentials: false
       - run: pnpm test
+        env:
+          BB_DATA_VALIDATOR: ${{ steps.validator.outputs.available == 'yes' && format('{0}/bb-data/scripts/validate-layout.mjs', github.workspace) || '' }}
       - run: pnpm build
       - run: pnpm test:e2e
         env:

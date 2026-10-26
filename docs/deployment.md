@@ -29,6 +29,16 @@ The deployment is code: `deploy/ansible/site.yml` sets up the server, `deploy/co
 
 The daily commits are authored as `rylkobot` (set in the playbook); the deploy key only authorises the push.
 
+## 3a. Read access to bb-data for CI
+
+The unit tests check the exported files with `scripts/validate-layout.mjs` of `bb-data`. CI reads it with a separate key that cannot write.
+
+1. `ssh-keygen -t ed25519 -N '' -C bb-hub-ci -f bb-data-read`
+2. In `silesiansolutions/bb-data`, Settings, Deploy keys: add `bb-data-read.pub` without write access.
+3. In `silesiansolutions/bb-hub`, Settings, Secrets and variables, Actions, add the private key as the repository secret `BB_DATA_READ_KEY`, then delete both local files.
+
+Without it the validator test is skipped and the run shows a notice; forks never have it.
+
 ## 4. Server access for GitHub Actions
 
 1. `ssh-keygen -t ed25519 -N '' -C bb-hub-deploy -f bb-hub-deploy`

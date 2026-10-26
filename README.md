@@ -100,7 +100,7 @@ MONGODB_URI=mongodb://localhost:27017/bb_e2e REDIS_URL=redis://localhost:6379 pn
 pnpm --filter @bb-hub/api build && MONGODB_URI=... node apps/api/dist/backfill/backfill.js --dir <data> --dir <backup-data>
 ```
 
-Node 24 (`.nvmrc`) and pnpm 11 (`packageManager`). The site build writes a static export to `apps/web/out`. The e2e suite drops its database and refuses to run unless the name ends with `_e2e`. With `BB_DATA_VALIDATOR` pointing at `scripts/validate-layout.mjs` of a data repository checkout, the unit tests also run the exported files through that validator. The last command imports raw `<type>/<id>/<YYYY-MM-DD>.json` trees, merged by reading time; `--any-city` keeps air readings from other towns.
+Node 24 (`.nvmrc`) and pnpm 11 (`packageManager`). The site build writes a static export to `apps/web/out`. The e2e suite drops its database and refuses to run unless the name ends with `_e2e`. With `BB_DATA_VALIDATOR` pointing at `scripts/validate-layout.mjs` of a data repository checkout, the unit tests also run the exported files through that validator; CI does the same when the `BB_DATA_READ_KEY` secret is set. The last command imports raw `<type>/<id>/<YYYY-MM-DD>.json` trees, merged by reading time; `--any-city` keeps air readings from other towns.
 
 ## Contributing
 
